@@ -7,6 +7,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { CompanyProvider } from "@/contexts/CompanyContext";
 import { PermissionProvider } from "@/contexts/PermissionContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import { AppLayout } from "@/components/layout";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
@@ -25,13 +26,15 @@ const App = () => (
               <Routes>
                 <Route path="/auth" element={<Auth />} />
                 <Route
-                  path="/"
                   element={
                     <ProtectedRoute>
-                      <Dashboard />
+                      <AppLayout />
                     </ProtectedRoute>
                   }
-                />
+                >
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/dashboard" element={<Dashboard />} />
+                </Route>
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
