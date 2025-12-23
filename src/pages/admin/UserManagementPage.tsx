@@ -91,8 +91,17 @@ const UserManagementPage: React.FC = () => {
     }
   }, [company?.id]);
 
+  const isValidEmail = (email: string) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  };
+
   const handleInviteUser = async () => {
     if (!company?.id || !user?.id) return;
+    
+    if (!isValidEmail(inviteForm.email)) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
     setSaving(true);
     try {
       // Get the current session for authorization
