@@ -19,6 +19,7 @@ import NotFound from "./pages/NotFound";
 import {
   SuperAdminDashboard,
   CompaniesPage,
+  CompanyDetailPage,
   SubscriptionsPage,
   PlansPage,
   SuperAdminsPage,
@@ -47,6 +48,7 @@ const App = () => (
                   <Route element={<RequireSuperAdmin><SuperAdminLayout /></RequireSuperAdmin>}>
                     <Route path="/super-admin" element={<SuperAdminDashboard />} />
                     <Route path="/super-admin/companies" element={<CompaniesPage />} />
+                    <Route path="/super-admin/companies/:companyId" element={<CompanyDetailPage />} />
                     <Route path="/super-admin/subscriptions" element={<SubscriptionsPage />} />
                     <Route path="/super-admin/plans" element={<PlansPage />} />
                     <Route path="/super-admin/admins" element={<SuperAdminsPage />} />

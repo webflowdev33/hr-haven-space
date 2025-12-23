@@ -1,8 +1,9 @@
-import { useLocation } from 'react-router-dom';
-import { ChevronRight } from 'lucide-react';
+import { useLocation, Link } from 'react-router-dom';
+import { ChevronRight, Shield } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useFilteredNavigation } from '@/hooks/useFilteredNavigation';
+import { useSuperAdmin } from '@/contexts/SuperAdminContext';
 import {
   Sidebar,
   SidebarContent,
@@ -25,6 +26,7 @@ import {
 export const AppSidebar = () => {
   const { company, branding } = useCompany();
   const filteredNavigation = useFilteredNavigation();
+  const { isSuperAdmin } = useSuperAdmin();
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
   const location = useLocation();
@@ -92,7 +94,17 @@ export const AppSidebar = () => {
         ))}
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-sidebar-border p-4">
+      <SidebarFooter className="border-t border-sidebar-border p-4 space-y-3">
+        {/* Super Admin Link - only visible to super admins */}
+        {isSuperAdmin && (
+          <Link
+            to="/super-admin"
+            className="flex items-center gap-2 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+          >
+            <Shield className="h-4 w-4" />
+            {!collapsed && <span>Super Admin</span>}
+          </Link>
+        )}
         {!collapsed && (
           <p className="text-xs text-sidebar-foreground/50">
             © {new Date().getFullYear()} {company?.name}
