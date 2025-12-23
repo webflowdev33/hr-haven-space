@@ -211,6 +211,63 @@ export type Database = {
           },
         ]
       }
+      company_subscriptions: {
+        Row: {
+          billing_cycle: string
+          cancelled_at: string | null
+          company_id: string
+          created_at: string
+          current_period_end: string
+          current_period_start: string
+          id: string
+          plan_id: string | null
+          status: string
+          trial_ends_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          billing_cycle?: string
+          cancelled_at?: string | null
+          company_id: string
+          created_at?: string
+          current_period_end?: string
+          current_period_start?: string
+          id?: string
+          plan_id?: string | null
+          status?: string
+          trial_ends_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          billing_cycle?: string
+          cancelled_at?: string | null
+          company_id?: string
+          created_at?: string
+          current_period_end?: string
+          current_period_start?: string
+          id?: string
+          plan_id?: string | null
+          status?: string
+          trial_ends_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_subscriptions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_subscriptions_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       departments: {
         Row: {
           company_id: string
@@ -474,6 +531,84 @@ export type Database = {
           },
         ]
       }
+      subscription_plans: {
+        Row: {
+          allowed_modules: string[]
+          created_at: string
+          description: string | null
+          features: Json | null
+          id: string
+          is_active: boolean
+          max_departments: number | null
+          max_users: number | null
+          name: string
+          price_monthly: number
+          price_yearly: number
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          allowed_modules?: string[]
+          created_at?: string
+          description?: string | null
+          features?: Json | null
+          id?: string
+          is_active?: boolean
+          max_departments?: number | null
+          max_users?: number | null
+          name: string
+          price_monthly?: number
+          price_yearly?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          allowed_modules?: string[]
+          created_at?: string
+          description?: string | null
+          features?: Json | null
+          id?: string
+          is_active?: boolean
+          max_departments?: number | null
+          max_users?: number | null
+          name?: string
+          price_monthly?: number
+          price_yearly?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      super_admins: {
+        Row: {
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          is_active: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           assigned_at: string
@@ -542,6 +677,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_super_admin: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
       employee_category: "trainee" | "intern" | "probation" | "confirmed"

@@ -6,13 +6,24 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { CompanyProvider } from "@/contexts/CompanyContext";
 import { PermissionProvider } from "@/contexts/PermissionContext";
+import { SuperAdminProvider } from "@/contexts/SuperAdminContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import { RequireSuperAdmin } from "@/components/guards";
 import { AppLayout } from "@/components/layout";
+import { SuperAdminLayout } from "@/components/layout/SuperAdminLayout";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
 import Unauthorized from "./pages/Unauthorized";
 import ModuleDisabled from "./pages/ModuleDisabled";
 import NotFound from "./pages/NotFound";
+import {
+  SuperAdminDashboard,
+  CompaniesPage,
+  SubscriptionsPage,
+  PlansPage,
+  SuperAdminsPage,
+  SettingsPage,
+} from "./pages/super-admin";
 
 const queryClient = new QueryClient();
 
@@ -23,67 +34,79 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <CompanyProvider>
-            <PermissionProvider>
-              <Routes>
-                {/* Public routes */}
-                <Route path="/auth" element={<Auth />} />
-                <Route path="/unauthorized" element={<Unauthorized />} />
-                <Route path="/module-disabled" element={<ModuleDisabled />} />
+          <SuperAdminProvider>
+            <CompanyProvider>
+              <PermissionProvider>
+                <Routes>
+                  {/* Public routes */}
+                  <Route path="/auth" element={<Auth />} />
+                  <Route path="/unauthorized" element={<Unauthorized />} />
+                  <Route path="/module-disabled" element={<ModuleDisabled />} />
 
-                {/* Protected routes with layout */}
-                <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/dashboard" element={<Dashboard />} />
-                  
-                  {/* HR Module routes - example with module + permission guards */}
-                  <Route element={<ProtectedRoute module="HR_CORE" />}>
-                    <Route path="/employees" element={<Dashboard />} />
-                    <Route path="/departments" element={<Dashboard />} />
-                    <Route path="/positions" element={<Dashboard />} />
+                  {/* Super Admin routes */}
+                  <Route element={<RequireSuperAdmin><SuperAdminLayout /></RequireSuperAdmin>}>
+                    <Route path="/super-admin" element={<SuperAdminDashboard />} />
+                    <Route path="/super-admin/companies" element={<CompaniesPage />} />
+                    <Route path="/super-admin/subscriptions" element={<SubscriptionsPage />} />
+                    <Route path="/super-admin/plans" element={<PlansPage />} />
+                    <Route path="/super-admin/admins" element={<SuperAdminsPage />} />
+                    <Route path="/super-admin/settings" element={<SettingsPage />} />
                   </Route>
 
-                  {/* Attendance Module routes */}
-                  <Route element={<ProtectedRoute module="ATTENDANCE" />}>
-                    <Route path="/attendance/*" element={<Dashboard />} />
+                  {/* Protected routes with layout */}
+                  <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+                    <Route path="/" element={<Dashboard />} />
+                    <Route path="/dashboard" element={<Dashboard />} />
+                    
+                    {/* HR Module routes */}
+                    <Route element={<ProtectedRoute module="HR_CORE" />}>
+                      <Route path="/employees" element={<Dashboard />} />
+                      <Route path="/departments" element={<Dashboard />} />
+                      <Route path="/positions" element={<Dashboard />} />
+                    </Route>
+
+                    {/* Attendance Module routes */}
+                    <Route element={<ProtectedRoute module="ATTENDANCE" />}>
+                      <Route path="/attendance/*" element={<Dashboard />} />
+                    </Route>
+
+                    {/* Leave Module routes */}
+                    <Route element={<ProtectedRoute module="LEAVE" />}>
+                      <Route path="/leave/*" element={<Dashboard />} />
+                    </Route>
+
+                    {/* Finance Module routes */}
+                    <Route element={<ProtectedRoute module="FINANCE" />}>
+                      <Route path="/finance/*" element={<Dashboard />} />
+                    </Route>
+
+                    {/* Revenue Module routes */}
+                    <Route element={<ProtectedRoute module="REVENUE" />}>
+                      <Route path="/revenue/*" element={<Dashboard />} />
+                    </Route>
+
+                    {/* Sales CRM Module routes */}
+                    <Route element={<ProtectedRoute module="SALES_CRM" />}>
+                      <Route path="/sales/*" element={<Dashboard />} />
+                    </Route>
+
+                    {/* Compliance Module routes */}
+                    <Route element={<ProtectedRoute module="COMPLIANCE" />}>
+                      <Route path="/compliance/*" element={<Dashboard />} />
+                    </Route>
+
+                    {/* Admin Module routes */}
+                    <Route element={<ProtectedRoute module="ADMIN" />}>
+                      <Route path="/admin/*" element={<Dashboard />} />
+                    </Route>
                   </Route>
 
-                  {/* Leave Module routes */}
-                  <Route element={<ProtectedRoute module="LEAVE" />}>
-                    <Route path="/leave/*" element={<Dashboard />} />
-                  </Route>
-
-                  {/* Finance Module routes */}
-                  <Route element={<ProtectedRoute module="FINANCE" />}>
-                    <Route path="/finance/*" element={<Dashboard />} />
-                  </Route>
-
-                  {/* Revenue Module routes */}
-                  <Route element={<ProtectedRoute module="REVENUE" />}>
-                    <Route path="/revenue/*" element={<Dashboard />} />
-                  </Route>
-
-                  {/* Sales CRM Module routes */}
-                  <Route element={<ProtectedRoute module="SALES_CRM" />}>
-                    <Route path="/sales/*" element={<Dashboard />} />
-                  </Route>
-
-                  {/* Compliance Module routes */}
-                  <Route element={<ProtectedRoute module="COMPLIANCE" />}>
-                    <Route path="/compliance/*" element={<Dashboard />} />
-                  </Route>
-
-                  {/* Admin Module routes */}
-                  <Route element={<ProtectedRoute module="ADMIN" />}>
-                    <Route path="/admin/*" element={<Dashboard />} />
-                  </Route>
-                </Route>
-
-                {/* Catch-all */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </PermissionProvider>
-          </CompanyProvider>
+                  {/* Catch-all */}
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </PermissionProvider>
+            </CompanyProvider>
+          </SuperAdminProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
