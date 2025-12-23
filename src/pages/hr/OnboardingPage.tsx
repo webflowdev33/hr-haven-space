@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { Plus, Loader2, CheckCircle2, Circle, ListChecks, Users, Trash2 } from 'lucide-react';
+import AssignOnboardingDialog from '@/components/hr/AssignOnboardingDialog';
 
 interface OnboardingTemplate {
   id: string;
@@ -251,13 +252,14 @@ const OnboardingPage: React.FC = () => {
           <p className="text-muted-foreground">Manage employee onboarding checklists</p>
         </div>
         {canManageOnboarding && (
-          <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                New Template
-              </Button>
-            </DialogTrigger>
+          <>
+            <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  New Template
+                </Button>
+              </DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Create Onboarding Template</DialogTitle>
@@ -286,6 +288,8 @@ const OnboardingPage: React.FC = () => {
               </div>
             </DialogContent>
           </Dialog>
+          <AssignOnboardingDialog templates={templates} onAssigned={() => { fetchEmployeeOnboardings(); fetchMyOnboarding(); }} />
+          </>
         )}
       </div>
 
