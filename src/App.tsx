@@ -25,6 +25,12 @@ import {
   SuperAdminsPage,
   SettingsPage,
 } from "./pages/super-admin";
+import {
+  CompanySettingsPage,
+  UserManagementPage,
+  RolesPermissionsPage,
+  ModulesPage,
+} from "./pages/admin";
 
 const queryClient = new QueryClient();
 
@@ -99,7 +105,11 @@ const App = () => (
 
                     {/* Admin Module routes */}
                     <Route element={<ProtectedRoute module="ADMIN" />}>
-                      <Route path="/admin/*" element={<Dashboard />} />
+                      <Route path="/admin/company" element={<CompanySettingsPage />} />
+                      <Route path="/admin/users" element={<UserManagementPage />} />
+                      <Route path="/admin/roles" element={<RolesPermissionsPage />} />
+                      <Route path="/admin/modules" element={<ModulesPage />} />
+                      <Route path="/admin/settings" element={<CompanySettingsPage />} />
                     </Route>
                   </Route>
 

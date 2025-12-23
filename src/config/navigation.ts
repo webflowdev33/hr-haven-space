@@ -243,9 +243,9 @@ export const navigationConfig: NavSection[] = [
         permission: 'admin.roles.view',
       },
       {
-        id: 'settings',
-        title: 'Settings',
-        href: '/admin/settings',
+        id: 'modules',
+        title: 'Modules',
+        href: '/admin/modules',
         icon: Settings,
         module: 'ADMIN',
         permission: 'admin.settings.view',
