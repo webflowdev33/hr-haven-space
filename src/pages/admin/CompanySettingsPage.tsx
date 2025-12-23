@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -9,13 +10,27 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ColorPicker } from '@/components/ui/color-picker';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
-import { Building2, Palette, Save, Loader2 } from 'lucide-react';
+import { Building2, Palette, Save, Loader2, Plus, Trash2, Edit, FolderTree } from 'lucide-react';
+import type { Tables } from '@/integrations/supabase/types';
+
+type Department = Tables<'departments'>;
 
 const CompanySettingsPage: React.FC = () => {
-  const { company, branding, refreshCompany, isLoading } = useCompany();
+  const [searchParams] = useSearchParams();
+  const defaultTab = searchParams.get('tab') || 'profile';
+  const { company, branding, departments, refreshCompany, isLoading } = useCompany();
   const { profile } = useAuth();
   const [saving, setSaving] = useState(false);
+  const [departmentDialogOpen, setDepartmentDialogOpen] = useState(false);
+  const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
+  const [departmentForm, setDepartmentForm] = useState({
+    name: '',
+    description: '',
+    parent_id: '',
+  });
 
   // Company form state
   const [companyForm, setCompanyForm] = useState({
@@ -124,6 +139,77 @@ const CompanySettingsPage: React.FC = () => {
     }
   };
 
+  const handleOpenDepartmentDialog = (department?: Department) => {
+    if (department) {
+      setEditingDepartment(department);
+      setDepartmentForm({
+        name: department.name,
+        description: department.description || '',
+        parent_id: department.parent_id || '',
+      });
+    } else {
+      setEditingDepartment(null);
+      setDepartmentForm({ name: '', description: '', parent_id: '' });
+    }
+    setDepartmentDialogOpen(true);
+  };
+
+  const handleSaveDepartment = async () => {
+    if (!company?.id || !departmentForm.name.trim()) return;
+    setSaving(true);
+    try {
+      if (editingDepartment) {
+        const { error } = await supabase
+          .from('departments')
+          .update({
+            name: departmentForm.name.trim(),
+            description: departmentForm.description.trim() || null,
+            parent_id: departmentForm.parent_id || null,
+          })
+          .eq('id', editingDepartment.id);
+
+        if (error) throw error;
+        toast.success('Department updated successfully');
+      } else {
+        const { error } = await supabase
+          .from('departments')
+          .insert({
+            name: departmentForm.name.trim(),
+            description: departmentForm.description.trim() || null,
+            company_id: company.id,
+            parent_id: departmentForm.parent_id || null,
+          });
+
+        if (error) throw error;
+        toast.success('Department created successfully');
+      }
+      setDepartmentDialogOpen(false);
+      setEditingDepartment(null);
+      setDepartmentForm({ name: '', description: '', parent_id: '' });
+      await refreshCompany();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to save department');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteDepartment = async (deptId: string) => {
+    if (!confirm('Are you sure you want to delete this department?')) return;
+    try {
+      const { error } = await supabase
+        .from('departments')
+        .delete()
+        .eq('id', deptId);
+
+      if (error) throw error;
+      toast.success('Department deleted successfully');
+      await refreshCompany();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete department');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -158,10 +244,10 @@ const CompanySettingsPage: React.FC = () => {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Company Settings</h1>
-        <p className="text-muted-foreground">Manage your company profile and branding</p>
+        <p className="text-muted-foreground">Manage your company profile, departments, and branding</p>
       </div>
 
-      <Tabs defaultValue="profile" className="space-y-6">
+      <Tabs defaultValue={defaultTab} className="space-y-6">
         <TabsList>
           <TabsTrigger value="profile" className="gap-2">
             <Building2 className="h-4 w-4" />
@@ -170,6 +256,10 @@ const CompanySettingsPage: React.FC = () => {
           <TabsTrigger value="branding" className="gap-2">
             <Palette className="h-4 w-4" />
             Branding
+          </TabsTrigger>
+          <TabsTrigger value="departments" className="gap-2">
+            <FolderTree className="h-4 w-4" />
+            Departments
           </TabsTrigger>
         </TabsList>
 
@@ -394,6 +484,130 @@ const CompanySettingsPage: React.FC = () => {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="departments">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Departments</CardTitle>
+                  <CardDescription>Manage your organization structure</CardDescription>
+                </div>
+                <Dialog open={departmentDialogOpen} onOpenChange={setDepartmentDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button onClick={() => handleOpenDepartmentDialog()}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add Department
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>{editingDepartment ? 'Edit Department' : 'Add Department'}</DialogTitle>
+                      <DialogDescription>
+                        {editingDepartment ? 'Update department details' : 'Create a new department'}
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="dept_name">Department Name</Label>
+                        <Input
+                          id="dept_name"
+                          value={departmentForm.name}
+                          onChange={(e) => setDepartmentForm({ ...departmentForm, name: e.target.value })}
+                          placeholder="e.g., Engineering, Sales"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="dept_description">Description (Optional)</Label>
+                        <Input
+                          id="dept_description"
+                          value={departmentForm.description}
+                          onChange={(e) => setDepartmentForm({ ...departmentForm, description: e.target.value })}
+                          placeholder="Brief description of the department"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="parent_dept">Parent Department (Optional)</Label>
+                        <Select
+                          value={departmentForm.parent_id}
+                          onValueChange={(value) => setDepartmentForm({ ...departmentForm, parent_id: value === 'none' ? '' : value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select parent department" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-popover">
+                            <SelectItem value="none">No parent (Top level)</SelectItem>
+                            {departments
+                              .filter(d => d.id !== editingDepartment?.id)
+                              .map((dept) => (
+                                <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button onClick={handleSaveDepartment} disabled={saving || !departmentForm.name.trim()} className="w-full">
+                        {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                        {editingDepartment ? 'Update Department' : 'Create Department'}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {departments.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <FolderTree className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No departments created yet.</p>
+                  <p className="text-sm">Click "Add Department" to create your first department.</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Parent</TableHead>
+                      <TableHead className="w-[100px]">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {departments.map((dept) => (
+                      <TableRow key={dept.id}>
+                        <TableCell className="font-medium">{dept.name}</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {dept.description || '-'}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {departments.find(d => d.id === dept.parent_id)?.name || '-'}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleOpenDepartmentDialog(dept)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDeleteDepartment(dept.id)}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

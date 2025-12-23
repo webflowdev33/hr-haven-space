@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -12,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import { Search, Plus, MoreHorizontal, UserPlus, Mail, Loader2, Shield, UserX, UserCheck } from 'lucide-react';
+import { Search, Plus, MoreHorizontal, UserPlus, Mail, Loader2, Shield, UserX, UserCheck, Building2 } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Profile = Tables<'profiles'>;
@@ -225,6 +226,9 @@ const UserManagementPage: React.FC = () => {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
+              <div className="p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md text-sm text-blue-700 dark:text-blue-300">
+                <strong>Note:</strong> An invitation record will be created. The user will need to sign up with this email to complete registration.
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -246,19 +250,30 @@ const UserManagementPage: React.FC = () => {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="department">Department (Optional)</Label>
-                <Select
-                  value={inviteForm.department_id}
-                  onValueChange={(value) => setInviteForm({ ...inviteForm, department_id: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select department" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {departments.map((dept) => (
-                      <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {departments.length === 0 ? (
+                  <div className="text-sm text-muted-foreground p-3 bg-muted rounded-md flex items-center justify-between">
+                    <span>No departments created yet.</span>
+                    <Link to="/admin/settings?tab=departments" className="text-primary hover:underline inline-flex items-center gap-1">
+                      <Building2 className="h-3 w-3" />
+                      Create departments
+                    </Link>
+                  </div>
+                ) : (
+                  <Select
+                    value={inviteForm.department_id}
+                    onValueChange={(value) => setInviteForm({ ...inviteForm, department_id: value === 'none' ? '' : value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select department" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-popover">
+                      <SelectItem value="none">No department</SelectItem>
+                      {departments.map((dept) => (
+                        <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
               <Button onClick={handleInviteUser} disabled={saving || !inviteForm.email} className="w-full">
                 {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
