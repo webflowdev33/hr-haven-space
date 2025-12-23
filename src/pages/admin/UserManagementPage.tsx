@@ -94,26 +94,24 @@ const UserManagementPage: React.FC = () => {
     if (!company?.id || !user?.id) return;
     setSaving(true);
     try {
-      // Generate invite token
-      const inviteToken = crypto.randomUUID();
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
+      // Get the current session for authorization
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('No active session');
+      }
 
-      const { error } = await supabase
-        .from('profiles')
-        .insert({
-          id: crypto.randomUUID(),
+      // Call the edge function to invite user
+      const { data, error } = await supabase.functions.invoke('invite-user', {
+        body: {
           email: inviteForm.email,
           full_name: inviteForm.full_name,
-          company_id: company.id,
           department_id: inviteForm.department_id || null,
-          status: 'invited',
-          invited_by: user.id,
-          invite_token: inviteToken,
-          invite_expires_at: expiresAt.toISOString(),
-        });
+        },
+      });
 
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
       toast.success('User invited successfully');
       setInviteDialogOpen(false);
       setInviteForm({ email: '', full_name: '', department_id: '' });
