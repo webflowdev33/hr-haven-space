@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { Plus, Loader2, Calendar, Check, X, Clock, AlertCircle, Settings } from 'lucide-react';
 import LeaveTypeConfig from '@/components/hr/LeaveTypeConfig';
+import InitializeLeaveBalances from '@/components/hr/InitializeLeaveBalances';
 
 interface LeaveType {
   id: string;
@@ -247,7 +248,11 @@ const LeaveManagementPage: React.FC = () => {
           <h1 className="text-2xl font-bold text-foreground">Leave Management</h1>
           <p className="text-muted-foreground">Apply for leave and track your requests</p>
         </div>
-        <Dialog open={applyDialogOpen} onOpenChange={setApplyDialogOpen}>
+        <div className="flex gap-2">
+          {canConfigureLeaveTypes && (
+            <InitializeLeaveBalances onInitialized={fetchLeaveBalances} />
+          )}
+          <Dialog open={applyDialogOpen} onOpenChange={setApplyDialogOpen}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="mr-2 h-4 w-4" />
@@ -322,6 +327,7 @@ const LeaveManagementPage: React.FC = () => {
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Leave Balances */}

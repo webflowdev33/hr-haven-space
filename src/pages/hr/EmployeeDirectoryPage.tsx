@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
+import { usePermissions } from '@/contexts/PermissionContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -11,7 +12,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Search, Mail, Phone, MapPin, Building2, Calendar, Loader2, User, Briefcase } from 'lucide-react';
+import { Search, Mail, Phone, MapPin, Building2, Calendar, Loader2, User, Briefcase, Pencil } from 'lucide-react';
+import EmployeeProfileEditor from '@/components/hr/EmployeeProfileEditor';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Profile = Tables<'profiles'>;
@@ -46,12 +48,15 @@ const getDepartment = (dept: { name: string }[] | null | undefined): { name: str
 
 const EmployeeDirectoryPage: React.FC = () => {
   const { company, departments } = useCompany();
+  const { isCompanyAdmin, hasRole } = usePermissions();
+  const canEditEmployees = isCompanyAdmin() || hasRole('HR') || hasRole('Hr manager');
   const [employees, setEmployees] = useState<EmployeeWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeeWithDetails | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const fetchEmployees = async () => {
     if (!company?.id) return;
@@ -189,7 +194,22 @@ const EmployeeDirectoryPage: React.FC = () => {
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Employee Details</DialogTitle>
+            <div className="flex items-center justify-between">
+              <DialogTitle>Employee Details</DialogTitle>
+              {canEditEmployees && selectedEmployee && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setDetailsOpen(false);
+                    setEditOpen(true);
+                  }}
+                >
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit
+                </Button>
+              )}
+            </div>
           </DialogHeader>
           {selectedEmployee && (() => {
             const details = getDetails(selectedEmployee.employee_details);
@@ -311,6 +331,20 @@ const EmployeeDirectoryPage: React.FC = () => {
           })()}
         </DialogContent>
       </Dialog>
+
+      {/* Edit Employee Dialog */}
+      {selectedEmployee && (
+        <EmployeeProfileEditor
+          employee={selectedEmployee}
+          employeeDetails={getDetails(selectedEmployee.employee_details) ? { 
+            ...getDetails(selectedEmployee.employee_details)!, 
+            profile_id: selectedEmployee.id 
+          } : null}
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          onSaved={fetchEmployees}
+        />
+      )}
     </div>
   );
 };
