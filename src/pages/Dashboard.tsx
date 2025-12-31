@@ -28,18 +28,18 @@ const Dashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-muted/30">
       {/* Header */}
-      <header className="border-b bg-background">
+      {/* <header className="border-b bg-background">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
               <Building2 className="h-5 w-5 text-primary-foreground" />
             </div>
-            {/* <div>
+            <div>
               <h1 className="font-semibold text-foreground">{company?.name || 'HRMS'}</h1>
               <p className="text-sm text-muted-foreground">Human Resource Management</p>
-            </div> */}
+            </div>
           </div>
-
+          
           <div className="flex items-center gap-4">
             <div className="text-right">
               <p className="text-sm font-medium text-foreground">{profile?.full_name || user?.email}</p>
@@ -53,7 +53,7 @@ const Dashboard: React.FC = () => {
             </Button>
           </div>
         </div>
-      </header>
+      </header> */}
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
