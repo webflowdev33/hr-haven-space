@@ -28,22 +28,31 @@ interface EmployeeDetails {
   gender?: string | null;
   address?: string | null;
   city?: string | null;
+  state?: string | null;
+  postal_code?: string | null;
+  country?: string | null;
   emergency_contact_name?: string | null;
   emergency_contact_phone?: string | null;
+  emergency_contact_relation?: string | null;
 }
 
 interface EmployeeWithDetails extends Profile {
-  department?: { name: string }[] | null;
-  employee_details?: EmployeeDetails[] | null;
+  // Supabase can return joined relations as an object (to-one) or array (to-many)
+  department?: { name: string } | { name: string }[] | null;
+  employee_details?: EmployeeDetails | EmployeeDetails[] | null;
 }
 
-// Helper to get first item from joined array
-const getDetails = (details: EmployeeDetails[] | null | undefined): EmployeeDetails | null => {
-  return details && details.length > 0 ? details[0] : null;
+// Helpers to normalize joins that may return object or array
+const getDetails = (details: EmployeeDetails | EmployeeDetails[] | null | undefined): EmployeeDetails | null => {
+  if (!details) return null;
+  return Array.isArray(details) ? details[0] ?? null : details;
 };
 
-const getDepartment = (dept: { name: string }[] | null | undefined): { name: string } | null => {
-  return dept && dept.length > 0 ? dept[0] : null;
+const getDepartment = (
+  dept: { name: string } | { name: string }[] | null | undefined
+): { name: string } | null => {
+  if (!dept) return null;
+  return Array.isArray(dept) ? dept[0] ?? null : dept;
 };
 
 const EmployeeDirectoryPage: React.FC = () => {
