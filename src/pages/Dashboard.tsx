@@ -1,12 +1,12 @@
-import React from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { useCompany } from '@/contexts/CompanyContext';
-import { usePermissions } from '@/contexts/PermissionContext';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Building2, Users, Shield, LogOut, Settings } from 'lucide-react';
-import HRDashboardWidgets from '@/components/hr/HRDashboardWidgets';
+import React from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useCompany } from "@/contexts/CompanyContext";
+import { usePermissions } from "@/contexts/PermissionContext";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Building2, Users, Shield, LogOut, Settings } from "lucide-react";
+import HRDashboardWidgets from "@/components/hr/HRDashboardWidgets";
 
 const Dashboard: React.FC = () => {
   const { user, profile, signOut } = useAuth();
@@ -34,12 +34,12 @@ const Dashboard: React.FC = () => {
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
               <Building2 className="h-5 w-5 text-primary-foreground" />
             </div>
-            <div>
+            {/* <div>
               <h1 className="font-semibold text-foreground">{company?.name || 'HRMS'}</h1>
               <p className="text-sm text-muted-foreground">Human Resource Management</p>
-            </div>
+            </div> */}
           </div>
-          
+
           <div className="flex items-center gap-4">
             <div className="text-right">
               <p className="text-sm font-medium text-foreground">{profile?.full_name || user?.email}</p>
@@ -58,12 +58,14 @@ const Dashboard: React.FC = () => {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
         <div className="mb-8">
-          <h2 className="text-2xl font-bold text-foreground">Welcome back, {profile?.full_name?.split(' ')[0] || 'User'}!</h2>
+          <h2 className="text-2xl font-bold text-foreground">
+            Welcome back, {profile?.full_name?.split(" ")[0] || "User"}!
+          </h2>
           <p className="text-muted-foreground">Here's an overview of your HRMS dashboard.</p>
         </div>
 
         {/* HR Dashboard Widgets */}
-        {enabledModules.includes('HR_CORE') && (
+        {enabledModules.includes("HR_CORE") && (
           <div className="mb-8">
             <HRDashboardWidgets />
           </div>
@@ -82,12 +84,12 @@ const Dashboard: React.FC = () => {
               </div>
             </CardHeader>
             <CardContent>
-              <p className="font-medium text-foreground">{company?.name || 'Not set'}</p>
-              {company?.industry && (
-                <p className="text-sm text-muted-foreground">{company.industry}</p>
-              )}
+              <p className="font-medium text-foreground">{company?.name || "Not set"}</p>
+              {company?.industry && <p className="text-sm text-muted-foreground">{company.industry}</p>}
               {company?.size && (
-                <Badge variant="secondary" className="mt-2">{company.size}</Badge>
+                <Badge variant="secondary" className="mt-2">
+                  {company.size}
+                </Badge>
               )}
             </CardContent>
           </Card>
@@ -107,7 +109,7 @@ const Dashboard: React.FC = () => {
               {roles.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                   {roles.map((role) => (
-                    <Badge key={role.id} variant={isCompanyAdmin() ? 'default' : 'secondary'}>
+                    <Badge key={role.id} variant={isCompanyAdmin() ? "default" : "secondary"}>
                       {role.name}
                     </Badge>
                   ))}
@@ -116,7 +118,7 @@ const Dashboard: React.FC = () => {
                 <p className="text-sm text-muted-foreground">No roles assigned yet</p>
               )}
               <p className="mt-2 text-xs text-muted-foreground">
-                {permissions.length} permission{permissions.length !== 1 ? 's' : ''} granted
+                {permissions.length} permission{permissions.length !== 1 ? "s" : ""} granted
               </p>
             </CardContent>
           </Card>
@@ -137,7 +139,7 @@ const Dashboard: React.FC = () => {
                 <div className="flex flex-wrap gap-2">
                   {enabledModules.map((module) => (
                     <Badge key={module} variant="outline">
-                      {module.replace('_', ' ')}
+                      {module.replace("_", " ")}
                     </Badge>
                   ))}
                 </div>
@@ -149,7 +151,7 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Profile Status */}
-        {profile?.status === 'invited' && (
+        {profile?.status === "invited" && (
           <Card className="mt-6 border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950">
             <CardContent className="pt-6">
               <p className="text-amber-800 dark:text-amber-200">
