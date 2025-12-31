@@ -18,52 +18,52 @@ import DepartmentManagement from '@/components/hr/DepartmentManagement';
 import type { Tables } from '@/integrations/supabase/types';
 type Profile = Tables<'profiles'>;
 
-interface EmployeeDetails {
-  designation?: string | null;
-  date_of_joining?: string | null;
-  employment_type?: string | null;
-  work_location?: string | null;
-  employee_id?: string | null;
-  date_of_birth?: string | null;
-  gender?: string | null;
-  address?: string | null;
-  city?: string | null;
-  state?: string | null;
-  postal_code?: string | null;
-  country?: string | null;
-  emergency_contact_name?: string | null;
-  emergency_contact_phone?: string | null;
-  emergency_contact_relation?: string | null;
+// Uses employee_directory view
+interface EmployeeFromView {
+  id: string;
+  email: string;
+  full_name: string | null;
+  phone: string | null;
+  avatar_url: string | null;
+  status: string;
+  employee_category: string | null;
+  company_id: string;
+  department_id: string | null;
+  department_name: string | null;
+  designation: string | null;
+  employee_id: string | null;
+  work_location: string | null;
+  date_of_joining: string | null;
 }
 
-interface EmployeeWithDetails extends Profile {
-  // Supabase can return joined relations as an object (to-one) or array (to-many)
-  department?: { name: string } | { name: string }[] | null;
-  employee_details?: EmployeeDetails | EmployeeDetails[] | null;
+// For dialog - uses employee_profile_complete view
+interface EmployeeComplete extends EmployeeFromView {
+  date_of_birth: string | null;
+  gender: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  postal_code: string | null;
+  country: string | null;
+  emergency_contact_name: string | null;
+  emergency_contact_phone: string | null;
+  emergency_contact_relation: string | null;
+  employment_type: string | null;
+  reporting_manager_id: string | null;
+  reporting_manager_name: string | null;
+  months_employed: number;
+  years_employed: number;
 }
-
-// Helpers to normalize joins that may return object or array
-const getDetails = (details: EmployeeDetails | EmployeeDetails[] | null | undefined): EmployeeDetails | null => {
-  if (!details) return null;
-  return Array.isArray(details) ? details[0] ?? null : details;
-};
-
-const getDepartment = (
-  dept: { name: string } | { name: string }[] | null | undefined
-): { name: string } | null => {
-  if (!dept) return null;
-  return Array.isArray(dept) ? dept[0] ?? null : dept;
-};
 
 const EmployeeDirectoryPage: React.FC = () => {
   const { company, departments } = useCompany();
   const { isCompanyAdmin, hasRole, hasPermission } = usePermissions();
   const canEditEmployees = isCompanyAdmin() || hasRole('HR') || hasRole('Hr manager') || hasPermission('hr.edit_employee');
-  const [employees, setEmployees] = useState<EmployeeWithDetails[]>([]);
+  const [employees, setEmployees] = useState<EmployeeFromView[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('all');
-  const [selectedEmployee, setSelectedEmployee] = useState<EmployeeWithDetails | null>(null);
+  const [selectedEmployee, setSelectedEmployee] = useState<EmployeeComplete | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
 
@@ -71,23 +71,32 @@ const EmployeeDirectoryPage: React.FC = () => {
     if (!company?.id) return;
     setIsLoading(true);
     try {
+      // Use employee_directory view - simplified listing
       const { data, error } = await supabase
-        .from('profiles')
-        .select(`
-          *,
-          department:departments!profiles_department_id_fkey(name),
-          employee_details:employee_details!employee_details_profile_id_fkey(*)
-        `)
+        .from('employee_directory')
+        .select('*')
         .eq('company_id', company.id)
-        .eq('status', 'active')
         .order('full_name');
 
       if (error) throw error;
-      setEmployees((data as unknown as EmployeeWithDetails[]) || []);
+      setEmployees((data as EmployeeFromView[]) || []);
     } catch (error: any) {
       toast.error(error.message || 'Failed to fetch employees');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchEmployeeDetails = async (employeeId: string) => {
+    // Use employee_profile_complete view for full details
+    const { data, error } = await supabase
+      .from('employee_profile_complete')
+      .select('*')
+      .eq('id', employeeId)
+      .maybeSingle();
+
+    if (!error && data) {
+      setSelectedEmployee(data as EmployeeComplete);
     }
   };
 
@@ -98,11 +107,10 @@ const EmployeeDirectoryPage: React.FC = () => {
   }, [company?.id]);
 
   const filteredEmployees = employees.filter(emp => {
-    const details = getDetails(emp.employee_details);
     const matchesSearch = 
       emp.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       emp.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      details?.designation?.toLowerCase().includes(searchQuery.toLowerCase());
+      emp.designation?.toLowerCase().includes(searchQuery.toLowerCase());
     
     const matchesDepartment = departmentFilter === 'all' || emp.department_id === departmentFilter;
     
@@ -171,15 +179,12 @@ const EmployeeDirectoryPage: React.FC = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredEmployees.map((employee) => {
-                const details = getDetails(employee.employee_details);
-                const dept = getDepartment(employee.department);
-                return (
+              {filteredEmployees.map((employee) => (
                   <Card
                     key={employee.id}
                     className="cursor-pointer hover:shadow-md transition-shadow"
-                    onClick={() => {
-                      setSelectedEmployee(employee);
+                    onClick={async () => {
+                      await fetchEmployeeDetails(employee.id);
                       setDetailsOpen(true);
                     }}
                   >
@@ -191,23 +196,22 @@ const EmployeeDirectoryPage: React.FC = () => {
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <h3 className="font-semibold text-foreground truncate">{employee.full_name || 'No name'}</h3>
-                          <p className="text-sm text-muted-foreground truncate">{details?.designation || 'No designation'}</p>
+                          <p className="text-sm text-muted-foreground truncate">{employee.designation || 'No designation'}</p>
                           <div className="flex items-center gap-2 mt-2">
-                            {dept && (
+                            {employee.department_name && (
                               <Badge variant="secondary" className="text-xs">
-                                {dept.name}
+                                {employee.department_name}
                               </Badge>
                             )}
                             <Badge variant="outline" className="text-xs">
-                              {details?.employment_type || 'Full-time'}
+                              Full-time
                             </Badge>
                           </div>
                         </div>
                       </div>
                     </CardContent>
                   </Card>
-                );
-              })}
+              ))}
             </div>
           )}
         </CardContent>
@@ -239,10 +243,7 @@ const EmployeeDirectoryPage: React.FC = () => {
               )}
             </div>
           </DialogHeader>
-          {selectedEmployee && (() => {
-            const details = getDetails(selectedEmployee.employee_details);
-            const dept = getDepartment(selectedEmployee.department);
-            return (
+          {selectedEmployee && (
               <Tabs defaultValue="personal" className="mt-4">
                 <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="personal">Personal</TabsTrigger>
@@ -257,7 +258,7 @@ const EmployeeDirectoryPage: React.FC = () => {
                     </Avatar>
                     <div>
                       <h3 className="text-xl font-semibold">{selectedEmployee.full_name}</h3>
-                      <p className="text-muted-foreground">{details?.designation}</p>
+                      <p className="text-muted-foreground">{selectedEmployee.designation}</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
@@ -279,20 +280,20 @@ const EmployeeDirectoryPage: React.FC = () => {
                       <Label className="text-muted-foreground">Date of Birth</Label>
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <span>{details?.date_of_birth || 'Not provided'}</span>
+                        <span>{selectedEmployee.date_of_birth || 'Not provided'}</span>
                       </div>
                     </div>
                     <div className="space-y-1">
                       <Label className="text-muted-foreground">Gender</Label>
-                      <span>{details?.gender || 'Not provided'}</span>
+                      <span>{selectedEmployee.gender || 'Not provided'}</span>
                     </div>
                     <div className="col-span-2 space-y-1">
                       <Label className="text-muted-foreground">Address</Label>
                       <div className="flex items-center gap-2">
                         <MapPin className="h-4 w-4 text-muted-foreground" />
                         <span>
-                          {details?.address 
-                            ? `${details.address}, ${details.city || ''}`
+                          {selectedEmployee.address 
+                            ? `${selectedEmployee.address}, ${selectedEmployee.city || ''}`
                             : 'Not provided'}
                         </span>
                       </div>
@@ -303,39 +304,43 @@ const EmployeeDirectoryPage: React.FC = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <Label className="text-muted-foreground">Employee ID</Label>
-                      <span>{details?.employee_id || 'Not assigned'}</span>
+                      <span>{selectedEmployee.employee_id || 'Not assigned'}</span>
                     </div>
                     <div className="space-y-1">
                       <Label className="text-muted-foreground">Department</Label>
                       <div className="flex items-center gap-2">
                         <Building2 className="h-4 w-4 text-muted-foreground" />
-                        <span>{dept?.name || 'Not assigned'}</span>
+                        <span>{selectedEmployee.department_name || 'Not assigned'}</span>
                       </div>
                     </div>
                     <div className="space-y-1">
                       <Label className="text-muted-foreground">Designation</Label>
                       <div className="flex items-center gap-2">
                         <Briefcase className="h-4 w-4 text-muted-foreground" />
-                        <span>{details?.designation || 'Not assigned'}</span>
+                        <span>{selectedEmployee.designation || 'Not assigned'}</span>
                       </div>
                     </div>
                     <div className="space-y-1">
                       <Label className="text-muted-foreground">Employment Type</Label>
-                      <Badge variant="secondary">{details?.employment_type || 'Full-time'}</Badge>
+                      <Badge variant="secondary">{selectedEmployee.employment_type || 'Full-time'}</Badge>
                     </div>
                     <div className="space-y-1">
                       <Label className="text-muted-foreground">Date of Joining</Label>
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <span>{details?.date_of_joining || 'Not provided'}</span>
+                        <span>{selectedEmployee.date_of_joining || 'Not provided'}</span>
                       </div>
                     </div>
                     <div className="space-y-1">
                       <Label className="text-muted-foreground">Work Location</Label>
                       <div className="flex items-center gap-2">
                         <MapPin className="h-4 w-4 text-muted-foreground" />
-                        <span>{details?.work_location || 'Not provided'}</span>
+                        <span>{selectedEmployee.work_location || 'Not provided'}</span>
                       </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-muted-foreground">Tenure</Label>
+                      <span>{selectedEmployee.years_employed} years, {selectedEmployee.months_employed % 12} months</span>
                     </div>
                   </div>
                 </TabsContent>
@@ -343,31 +348,61 @@ const EmployeeDirectoryPage: React.FC = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <Label className="text-muted-foreground">Contact Name</Label>
-                      <span>{details?.emergency_contact_name || 'Not provided'}</span>
+                      <span>{selectedEmployee.emergency_contact_name || 'Not provided'}</span>
                     </div>
                     <div className="space-y-1">
                       <Label className="text-muted-foreground">Contact Phone</Label>
                       <div className="flex items-center gap-2">
                         <Phone className="h-4 w-4 text-muted-foreground" />
-                        <span>{details?.emergency_contact_phone || 'Not provided'}</span>
+                        <span>{selectedEmployee.emergency_contact_phone || 'Not provided'}</span>
                       </div>
                     </div>
                   </div>
                 </TabsContent>
               </Tabs>
-            );
-          })()}
+          )}
         </DialogContent>
       </Dialog>
 
       {/* Edit Employee Dialog */}
       {selectedEmployee && (
         <EmployeeProfileEditor
-          employee={selectedEmployee}
-          employeeDetails={getDetails(selectedEmployee.employee_details) ? { 
-            ...getDetails(selectedEmployee.employee_details)!, 
-            profile_id: selectedEmployee.id 
-          } : null}
+          employee={{
+            id: selectedEmployee.id,
+            email: selectedEmployee.email,
+            full_name: selectedEmployee.full_name,
+            phone: selectedEmployee.phone,
+            avatar_url: selectedEmployee.avatar_url,
+            status: selectedEmployee.status as any,
+            employee_category: selectedEmployee.employee_category as any,
+            company_id: selectedEmployee.company_id,
+            department_id: selectedEmployee.department_id,
+            created_at: '',
+            updated_at: '',
+            activated_at: null,
+            deactivated_at: null,
+            invite_expires_at: null,
+            invite_token: null,
+            invited_by: null,
+          }}
+          employeeDetails={{
+            profile_id: selectedEmployee.id,
+            designation: selectedEmployee.designation,
+            date_of_joining: selectedEmployee.date_of_joining,
+            employment_type: selectedEmployee.employment_type,
+            work_location: selectedEmployee.work_location,
+            employee_id: selectedEmployee.employee_id,
+            date_of_birth: selectedEmployee.date_of_birth,
+            gender: selectedEmployee.gender,
+            address: selectedEmployee.address,
+            city: selectedEmployee.city,
+            state: selectedEmployee.state,
+            postal_code: selectedEmployee.postal_code,
+            country: selectedEmployee.country,
+            emergency_contact_name: selectedEmployee.emergency_contact_name,
+            emergency_contact_phone: selectedEmployee.emergency_contact_phone,
+            emergency_contact_relation: selectedEmployee.emergency_contact_relation,
+          }}
           open={editOpen}
           onOpenChange={setEditOpen}
           onSaved={fetchEmployees}
