@@ -10,19 +10,24 @@ import { toast } from 'sonner';
 import { Loader2, Users, Search } from 'lucide-react';
 import { format } from 'date-fns';
 
+// Uses attendance_daily view
 interface AttendanceRecord {
   id: string;
+  profile_id: string;
   date: string;
   check_in: string | null;
   check_out: string | null;
   work_hours: number | null;
   status: string;
-  profile: {
-    id: string;
-    full_name: string | null;
-    email: string;
-    avatar_url: string | null;
-  };
+  notes: string | null;
+  employee_name: string | null;
+  employee_email: string;
+  company_id: string;
+  department_id: string | null;
+  department_name: string | null;
+  designation: string | null;
+  is_late: boolean;
+  overtime_hours: number;
 }
 
 const TeamAttendanceView: React.FC = () => {
@@ -36,17 +41,16 @@ const TeamAttendanceView: React.FC = () => {
     if (!company?.id) return;
     setIsLoading(true);
     try {
+      // Use attendance_daily view - includes employee info and calculations
       const { data, error } = await supabase
-        .from('attendance')
-        .select(`
-          *,
-          profile:profiles!attendance_profile_id_fkey(id, full_name, email, avatar_url)
-        `)
+        .from('attendance_daily')
+        .select('*')
         .eq('date', selectedDate)
+        .eq('company_id', company.id)
         .order('check_in', { ascending: true });
 
       if (error) throw error;
-      setAttendance((data as unknown as AttendanceRecord[]) || []);
+      setAttendance((data as AttendanceRecord[]) || []);
     } catch (error: any) {
       toast.error(error.message || 'Failed to fetch team attendance');
     } finally {
@@ -86,8 +90,8 @@ const TeamAttendanceView: React.FC = () => {
   };
 
   const filteredAttendance = attendance.filter(record =>
-    record.profile?.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    record.profile?.email?.toLowerCase().includes(searchQuery.toLowerCase())
+    record.employee_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    record.employee_email?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const stats = {
@@ -189,20 +193,29 @@ const TeamAttendanceView: React.FC = () => {
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-8 w-8">
-                          <AvatarImage src={record.profile?.avatar_url || undefined} />
                           <AvatarFallback className="text-xs">
-                            {getInitials(record.profile?.full_name)}
+                            {getInitials(record.employee_name)}
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <p className="font-medium">{record.profile?.full_name || 'Unknown'}</p>
-                          <p className="text-sm text-muted-foreground">{record.profile?.email}</p>
+                          <p className="font-medium">{record.employee_name || 'Unknown'}</p>
+                          <p className="text-sm text-muted-foreground">{record.employee_email}</p>
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell>{formatTime(record.check_in)}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {formatTime(record.check_in)}
+                        {record.is_late && <Badge variant="outline" className="text-xs text-amber-600">Late</Badge>}
+                      </div>
+                    </TableCell>
                     <TableCell>{formatTime(record.check_out)}</TableCell>
-                    <TableCell>{record.work_hours ? `${record.work_hours}h` : '-'}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {record.work_hours ? `${record.work_hours}h` : '-'}
+                        {record.overtime_hours > 0 && <Badge variant="outline" className="text-xs text-green-600">+{record.overtime_hours}h OT</Badge>}
+                      </div>
+                    </TableCell>
                     <TableCell>{getStatusBadge(record.status)}</TableCell>
                   </TableRow>
                 ))}

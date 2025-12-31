@@ -45,6 +45,7 @@ interface LeaveType {
   is_paid: boolean;
 }
 
+// Uses leave_request_details view
 interface LeaveRequest {
   id: string;
   profile_id: string;
@@ -61,16 +62,35 @@ interface LeaveRequest {
   auto_unpaid_reason: string | null;
   manager_approved: boolean | null;
   hr_approved: boolean | null;
+  leave_type_name?: string;
+  leave_type_is_paid?: boolean;
+  employee_name?: string;
+  employee_email?: string;
+  employee_category?: string;
+  department_id?: string;
+  department_name?: string;
+  // Backwards compatibility for old queries
   leave_type?: LeaveType;
   profile?: { full_name: string; email: string; employee_category: string };
 }
 
+// Uses leave_balance_summary view
 interface LeaveBalance {
   id: string;
+  profile_id: string;
   leave_type_id: string;
+  year: number;
   total_days: number;
   used_days: number;
+  carry_forward_days: number;
   accrued_days?: number;
+  remaining_days: number;
+  leave_type_name: string;
+  leave_type_description?: string;
+  is_paid: boolean;
+  monthly_credit?: number;
+  days_per_year?: number;
+  // Backwards compatibility
   leave_type?: LeaveType;
 }
 
@@ -119,55 +139,42 @@ const LeaveManagementPage: React.FC = () => {
 
   const fetchMyRequests = async () => {
     if (!user?.id) return;
+    // Use leave_request_details view
     const { data, error } = await supabase
-      .from("leave_requests")
-      .select(
-        `
-        *,
-        leave_type:leave_types(id, name, is_paid)
-      `,
-      )
+      .from("leave_request_details")
+      .select("*")
       .eq("profile_id", user.id)
       .order("created_at", { ascending: false });
 
     if (error) console.error("Error fetching my requests:", error);
-    else setMyRequests(data || []);
+    else setMyRequests((data || []) as LeaveRequest[]);
   };
 
   const fetchAllRequests = async () => {
     if (!company?.id || !canManageLeave) return;
+    // Use leave_request_details view
     const { data, error } = await supabase
-      .from("leave_requests")
-      .select(
-        `
-        *,
-        leave_type:leave_types(id, name, is_paid),
-        profile:profiles!leave_requests_profile_id_fkey(full_name, email, employee_category)
-      `,
-      )
+      .from("leave_request_details")
+      .select("*")
       .eq("status", "pending")
       .order("created_at", { ascending: false });
 
     if (error) console.error("Error fetching all requests:", error);
-    else setAllRequests(data || []);
+    else setAllRequests((data || []) as LeaveRequest[]);
   };
 
   const fetchLeaveBalances = async () => {
     if (!user?.id) return;
     const currentYear = new Date().getFullYear();
+    // Use leave_balance_summary view - includes remaining_days calculation
     const { data, error } = await supabase
-      .from("leave_balances")
-      .select(
-        `
-        *,
-        leave_type:leave_types(id, name, days_per_year, is_paid)
-      `,
-      )
+      .from("leave_balance_summary")
+      .select("*")
       .eq("profile_id", user.id)
       .eq("year", currentYear);
 
     if (error) console.error("Error fetching leave balances:", error);
-    else setLeaveBalances(data || []);
+    else setLeaveBalances((data || []) as LeaveBalance[]);
   };
 
   useEffect(() => {

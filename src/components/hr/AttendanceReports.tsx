@@ -46,64 +46,63 @@ const AttendanceReports: React.FC = () => {
       const monthStart = startOfMonth(new Date(parseInt(year), parseInt(month) - 1));
       const monthEnd = endOfMonth(monthStart);
 
-      // Get all employees
-      let employeesQuery = supabase
-        .from('profiles')
-        .select('id, full_name, department_id, department:departments!fk_profiles_department(name)')
-        .eq('company_id', company.id)
-        .eq('status', 'active');
-
-      if (selectedDepartment !== 'all') {
-        employeesQuery = employeesQuery.eq('department_id', selectedDepartment);
-      }
-
-      const { data: employees, error: empError } = await employeesQuery;
-      if (empError) throw empError;
-
-      // Get attendance records for the month - only needed columns
-      const { data: attendance, error: attError } = await supabase
-        .from('attendance')
-        .select('id, profile_id, date, check_in, check_out, status, work_hours')
-        .gte('date', format(monthStart, 'yyyy-MM-dd'))
-        .lte('date', format(monthEnd, 'yyyy-MM-dd'));
-
-      if (attError) throw attError;
-
       // Calculate working days in month (excluding weekends)
       const workingDays = eachDayOfInterval({ start: monthStart, end: monthEnd })
         .filter(d => !isWeekend(d)).length;
 
-      // Build summary for each employee
-      const summaries: AttendanceSummary[] = (employees || []).map(emp => {
-        const empAttendance = attendance?.filter(a => a.profile_id === emp.id) || [];
-        
-        const present = empAttendance.filter(a => a.status === 'present').length;
-        const halfDay = empAttendance.filter(a => a.status === 'half-day').length;
-        const leave = empAttendance.filter(a => a.status === 'leave').length;
-        const absent = workingDays - present - halfDay - leave;
-        
-        const workHours = empAttendance.reduce((sum, a) => sum + (a.work_hours || 0), 0);
-        const avgHours = present > 0 ? workHours / present : 0;
-        
-        // Late arrivals (check-in after 9:30 AM)
-        const lateCount = empAttendance.filter(a => {
-          if (!a.check_in) return false;
-          const checkIn = new Date(a.check_in);
-          return checkIn.getHours() > 9 || (checkIn.getHours() === 9 && checkIn.getMinutes() > 30);
-        }).length;
+      // Use attendance_monthly_summary view for aggregated data
+      let summaryQuery = supabase
+        .from('attendance_monthly_summary')
+        .select('*')
+        .eq('company_id', company.id)
+        .eq('year', parseInt(year))
+        .eq('month', parseInt(month));
 
-        const dept = Array.isArray(emp.department) ? emp.department[0] : emp.department;
+      if (selectedDepartment !== 'all') {
+        summaryQuery = summaryQuery.eq('department_id', selectedDepartment);
+      }
+
+      const { data: monthlySummary, error: summaryError } = await summaryQuery;
+      if (summaryError) throw summaryError;
+
+      // Get late arrivals from attendance_daily view
+      let dailyQuery = supabase
+        .from('attendance_daily')
+        .select('profile_id, is_late')
+        .eq('company_id', company.id)
+        .gte('date', format(monthStart, 'yyyy-MM-dd'))
+        .lte('date', format(monthEnd, 'yyyy-MM-dd'))
+        .eq('is_late', true);
+
+      if (selectedDepartment !== 'all') {
+        dailyQuery = dailyQuery.eq('department_id', selectedDepartment);
+      }
+
+      const { data: lateData } = await dailyQuery;
+
+      // Calculate late arrivals per employee
+      const lateByEmployee = (lateData || []).reduce((acc, record) => {
+        acc[record.profile_id] = (acc[record.profile_id] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      // Build summary for each employee
+      const summaries: AttendanceSummary[] = (monthlySummary || []).map(row => {
+        const present = Number(row.days_present) || 0;
+        const halfDay = Number(row.days_half) || 0;
+        const leave = Number(row.days_on_leave) || 0;
+        const absent = Math.max(0, workingDays - present - halfDay - leave);
 
         return {
-          profile_id: emp.id,
-          full_name: emp.full_name || 'Unknown',
-          department_name: dept?.name || null,
+          profile_id: row.profile_id,
+          full_name: row.employee_name || 'Unknown',
+          department_name: row.department_name || null,
           total_present: present,
-          total_absent: Math.max(0, absent),
+          total_absent: absent,
           total_half_day: halfDay,
           total_leave: leave,
-          avg_work_hours: Math.round(avgHours * 10) / 10,
-          late_arrivals: lateCount,
+          avg_work_hours: Math.round(Number(row.avg_work_hours) * 10) / 10,
+          late_arrivals: lateByEmployee[row.profile_id] || 0,
         };
       });
 
