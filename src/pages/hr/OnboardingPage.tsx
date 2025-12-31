@@ -36,23 +36,34 @@ interface OnboardingTemplateItem {
   is_required: boolean;
 }
 
+// Using onboarding_progress view from database
 interface EmployeeOnboarding {
   id: string;
   profile_id: string;
   template_id: string;
   status: string;
   started_at: string;
-  profile?: { full_name: string; email: string };
-  template?: { id?: string; name: string; description?: string | null; is_active?: boolean };
-  items?: EmployeeOnboardingItem[];
+  completed_at: string | null;
+  employee_name: string | null;
+  employee_email: string | null;
+  template_name: string | null;
+  template_description: string | null;
+  total_items: number | null;
+  completed_items: number | null;
+  progress_percentage: number | null;
 }
 
-interface EmployeeOnboardingItem {
+// For my onboarding items display - matches onboarding_item_details view
+interface OnboardingItemDisplay {
   id: string;
-  template_item_id: string;
-  is_completed: boolean;
+  onboarding_id: string | null;
+  is_completed: boolean | null;
   completed_at: string | null;
-  template_item?: OnboardingTemplateItem;
+  title: string | null;
+  description: string | null;
+  category: string | null;
+  sort_order: number | null;
+  is_required: boolean | null;
 }
 
 const OnboardingPage: React.FC = () => {
@@ -64,6 +75,7 @@ const OnboardingPage: React.FC = () => {
   const canManageOnboarding = isCompanyAdmin() || hasRole('HR') || hasRole('Hr manager') || hasPermission('hr.manage_department');
   const [templates, setTemplates] = useState<OnboardingTemplate[]>([]);
   const [employeeOnboardings, setEmployeeOnboardings] = useState<EmployeeOnboarding[]>([]);
+  const [myOnboardingItems, setMyOnboardingItems] = useState<OnboardingItemDisplay[]>([]);
   const [myOnboarding, setMyOnboarding] = useState<EmployeeOnboarding | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
@@ -99,14 +111,10 @@ const OnboardingPage: React.FC = () => {
   const fetchEmployeeOnboardings = async () => {
     if (!company?.id || !canManageOnboarding) return;
     
+    // Use the onboarding_progress view for pre-calculated data
     const { data, error } = await supabase
-      .from('employee_onboarding')
-      .select(`
-        *,
-        profile:profiles(full_name, email),
-        template:onboarding_templates(name),
-        items:employee_onboarding_items(*, template_item:onboarding_template_items(*))
-      `)
+      .from('onboarding_progress')
+      .select('*')
       .order('started_at', { ascending: false });
     
     if (error) {
@@ -119,21 +127,36 @@ const OnboardingPage: React.FC = () => {
   const fetchMyOnboarding = async () => {
     if (!user?.id) return;
     
-    const { data, error } = await supabase
-      .from('employee_onboarding')
-      .select(`
-        *,
-        template:onboarding_templates(name, description),
-        items:employee_onboarding_items(*, template_item:onboarding_template_items(*))
-      `)
+    // Use the onboarding_progress view for my onboarding
+    const { data: onboardingData, error: onboardingError } = await supabase
+      .from('onboarding_progress')
+      .select('*')
       .eq('profile_id', user.id)
       .eq('status', 'in_progress')
       .maybeSingle();
     
-    if (error) {
-      console.error('Error fetching my onboarding:', error);
+    if (onboardingError) {
+      console.error('Error fetching my onboarding:', onboardingError);
+      return;
+    }
+    
+    setMyOnboarding(onboardingData);
+    
+    // Fetch onboarding items using the onboarding_item_details view if we have an onboarding
+    if (onboardingData?.id) {
+      const { data: itemsData, error: itemsError } = await supabase
+        .from('onboarding_item_details')
+        .select('*')
+        .eq('onboarding_id', onboardingData.id)
+        .order('sort_order', { ascending: true });
+      
+      if (itemsError) {
+        console.error('Error fetching onboarding items:', itemsError);
+      } else {
+        setMyOnboardingItems(itemsData || []);
+      }
     } else {
-      setMyOnboarding(data);
+      setMyOnboardingItems([]);
     }
   };
 
@@ -303,10 +326,9 @@ const OnboardingPage: React.FC = () => {
     }
   };
 
-  const getOnboardingProgress = (items: EmployeeOnboardingItem[] | undefined) => {
-    if (!items || items.length === 0) return 0;
-    const completed = items.filter(i => i.is_completed).length;
-    return Math.round((completed / items.length) * 100);
+  // Progress is now pre-calculated in the view
+  const getOnboardingProgress = (onboarding: EmployeeOnboarding | null) => {
+    return onboarding?.progress_percentage ?? 0;
   };
 
   if (isLoading) {
@@ -374,29 +396,29 @@ const OnboardingPage: React.FC = () => {
               <ListChecks className="h-5 w-5" />
               Your Onboarding Progress
             </CardTitle>
-            <CardDescription>{myOnboarding.template?.name}</CardDescription>
+            <CardDescription>{myOnboarding.template_name}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="mb-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-muted-foreground">Progress</span>
-                <span className="text-sm font-medium">{getOnboardingProgress(myOnboarding.items)}%</span>
+                <span className="text-sm font-medium">{getOnboardingProgress(myOnboarding)}%</span>
               </div>
-              <Progress value={getOnboardingProgress(myOnboarding.items)} />
+              <Progress value={getOnboardingProgress(myOnboarding)} />
             </div>
             <div className="space-y-3">
-              {myOnboarding.items?.sort((a, b) => (a.template_item?.sort_order || 0) - (b.template_item?.sort_order || 0)).map((item) => (
+              {myOnboardingItems.map((item) => (
                 <div key={item.id} className="flex items-start gap-3 p-3 bg-background rounded-lg">
                   <Checkbox
-                    checked={item.is_completed}
+                    checked={item.is_completed ?? false}
                     onCheckedChange={(checked) => handleToggleOnboardingItem(item.id, !!checked)}
                   />
                   <div className="flex-1">
                     <p className={`font-medium ${item.is_completed ? 'line-through text-muted-foreground' : ''}`}>
-                      {item.template_item?.title}
+                      {item.title}
                     </p>
-                    {item.template_item?.description && (
-                      <p className="text-sm text-muted-foreground">{item.template_item.description}</p>
+                    {item.description && (
+                      <p className="text-sm text-muted-foreground">{item.description}</p>
                     )}
                   </div>
                   {item.is_completed ? (
@@ -539,14 +561,14 @@ const OnboardingPage: React.FC = () => {
                     {employeeOnboardings.map((onboarding) => (
                       <div key={onboarding.id} className="flex items-center gap-4 p-4 border rounded-lg">
                         <div className="flex-1">
-                          <p className="font-medium">{onboarding.profile?.full_name}</p>
-                          <p className="text-sm text-muted-foreground">{onboarding.template?.name}</p>
+                          <p className="font-medium">{onboarding.employee_name}</p>
+                          <p className="text-sm text-muted-foreground">{onboarding.template_name}</p>
                         </div>
                         <div className="w-32">
-                          <Progress value={getOnboardingProgress(onboarding.items)} />
+                          <Progress value={getOnboardingProgress(onboarding)} />
                         </div>
                         <Badge variant={onboarding.status === 'completed' ? 'default' : 'secondary'}>
-                          {onboarding.status === 'completed' ? 'Completed' : `${getOnboardingProgress(onboarding.items)}%`}
+                          {onboarding.status === 'completed' ? 'Completed' : `${getOnboardingProgress(onboarding)}%`}
                         </Badge>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
