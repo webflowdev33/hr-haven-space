@@ -106,9 +106,15 @@ const LeaveManagementPage: React.FC = () => {
     determineRequestType,
   } = useLeavePolicy();
 
-  const isHR = hasRole("HR") || hasRole("Hr manager");
-  const canManageLeave = isCompanyAdmin() || isHR || hasPermission("leave.approve");
-  const canConfigureLeaveTypes = isCompanyAdmin() || isHR || hasPermission("leave.manage_policy");
+  // Check permissions instead of hardcoded role names
+  const canApproveLeave = hasPermission("leave.approve");
+  const canManagePolicy = hasPermission("leave.manage_policy");
+  const canManageBalance = hasPermission("leave.manage_balance");
+  const canViewLeave = hasPermission("leave.view");
+  
+  // User can manage leave if they're admin OR have any leave management permission
+  const canManageLeave = isCompanyAdmin() || canApproveLeave;
+  const canConfigureLeaveTypes = isCompanyAdmin() || canManagePolicy;
 
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
   const [myRequests, setMyRequests] = useState<LeaveRequest[]>([]);
@@ -744,7 +750,7 @@ const LeaveManagementPage: React.FC = () => {
                           </TableCell>
                           <TableCell>{getRequestTypeBadge(request.request_type as RequestType)}</TableCell>
                           <TableCell>
-                            {isHR ? (
+                            {canApproveLeave ? (
                               <div className="flex items-center gap-2">
                                 <Switch
                                   checked={request.is_paid}
@@ -803,7 +809,7 @@ const LeaveManagementPage: React.FC = () => {
                                 </>
                               )}
                               {/* HR Approval (only for HR users) */}
-                              {isHR &&
+                              {canApproveLeave &&
                                 request.requires_hr_approval &&
                                 request.hr_approved === null &&
                                 request.manager_approved === true && (

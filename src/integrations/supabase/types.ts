@@ -3594,6 +3594,10 @@ export type Database = {
       }
       get_months_employed: { Args: { _profile_id: string }; Returns: number }
       get_user_company_id: { Args: { _user_id: string }; Returns: string }
+      has_leave_permission: {
+        Args: { _permission_code: string; _user_id: string }
+        Returns: boolean
+      }
       has_permission: {
         Args: { _permission_code: string; _user_id: string }
         Returns: boolean
