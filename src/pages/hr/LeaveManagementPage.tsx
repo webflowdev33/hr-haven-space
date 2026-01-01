@@ -600,9 +600,9 @@ const LeaveManagementPage: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-muted-foreground">
-                        {balance.leave_type?.name || "Unknown Leave Type"}
+                        {balance.leave_type_name || "Unknown Leave Type"}
                       </p>
-                      <p className="text-2xl font-bold">{remainingDays.toFixed(1)}</p>
+                      <p className="text-2xl font-bold">{balance.remaining_days?.toFixed(1) || remainingDays.toFixed(1)}</p>
                       <p className="text-xs text-muted-foreground">days remaining</p>
                     </div>
                     <div className="text-right text-sm text-muted-foreground">
@@ -684,7 +684,7 @@ const LeaveManagementPage: React.FC = () => {
                   <TableBody>
                     {myRequests.map((request) => (
                       <TableRow key={request.id}>
-                        <TableCell className="font-medium">{request.leave_type?.name}</TableCell>
+                        <TableCell className="font-medium">{request.leave_type_name || request.leave_type?.name || "Unknown"}</TableCell>
                         <TableCell>
                           {request.start_date} to {request.end_date}
                         </TableCell>
@@ -733,13 +733,13 @@ const LeaveManagementPage: React.FC = () => {
                         <TableRow key={request.id}>
                           <TableCell>
                             <div>
-                              <p className="font-medium">{request.profile?.full_name}</p>
+                              <p className="font-medium">{request.employee_name || request.profile?.full_name}</p>
                               <p className="text-xs text-muted-foreground capitalize">
-                                {request.profile?.employee_category}
+                                {request.employee_category || request.profile?.employee_category}
                               </p>
                             </div>
                           </TableCell>
-                          <TableCell>{request.leave_type?.name}</TableCell>
+                          <TableCell>{request.leave_type_name || request.leave_type?.name || "Unknown"}</TableCell>
                           <TableCell>
                             <div>
                               <p>
