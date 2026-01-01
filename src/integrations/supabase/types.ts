@@ -1218,9 +1218,11 @@ export type Database = {
           id: string
           is_active: boolean
           is_carry_forward: boolean
+          is_monthly_quota: boolean
           is_paid: boolean
           max_carry_forward_days: number | null
           monthly_credit: number | null
+          monthly_limit: number | null
           name: string
           updated_at: string
         }
@@ -1232,9 +1234,11 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_carry_forward?: boolean
+          is_monthly_quota?: boolean
           is_paid?: boolean
           max_carry_forward_days?: number | null
           monthly_credit?: number | null
+          monthly_limit?: number | null
           name: string
           updated_at?: string
         }
@@ -1246,9 +1250,11 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_carry_forward?: boolean
+          is_monthly_quota?: boolean
           is_paid?: boolean
           max_carry_forward_days?: number | null
           monthly_credit?: number | null
+          monthly_limit?: number | null
           name?: string
           updated_at?: string
         }
@@ -2504,11 +2510,13 @@ export type Database = {
           email: string | null
           full_name: string | null
           id: string | null
+          is_monthly_quota: boolean | null
           is_paid: boolean | null
           leave_type_description: string | null
           leave_type_id: string | null
           leave_type_name: string | null
           monthly_credit: number | null
+          monthly_limit: number | null
           profile_id: string | null
           remaining_days: number | null
           total_days: number | null
@@ -2591,6 +2599,73 @@ export type Database = {
             columns: ["department_id"]
             isOneToOne: false
             referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leave_monthly_usage: {
+        Row: {
+          company_id: string | null
+          email: string | null
+          full_name: string | null
+          is_monthly_quota: boolean | null
+          leave_type_id: string | null
+          leave_type_name: string | null
+          month: number | null
+          monthly_limit: number | null
+          profile_id: string | null
+          remaining_days: number | null
+          used_days: number | null
+          year: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leave_requests_leave_type_id_fkey"
+            columns: ["leave_type_id"]
+            isOneToOne: false
+            referencedRelation: "leave_type_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leave_requests_leave_type_id_fkey"
+            columns: ["leave_type_id"]
+            isOneToOne: false
+            referencedRelation: "leave_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leave_requests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "employee_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leave_requests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "employee_profile_complete"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leave_requests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "company_overview"
             referencedColumns: ["id"]
           },
         ]

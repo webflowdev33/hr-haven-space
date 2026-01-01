@@ -45,6 +45,8 @@ interface LeaveType {
   description?: string | null;
   days_per_year?: number;
   is_paid: boolean;
+  is_monthly_quota?: boolean;
+  monthly_limit?: number | null;
 }
 
 // Uses leave_request_details view
@@ -92,8 +94,22 @@ interface LeaveBalance {
   is_paid: boolean;
   monthly_credit?: number;
   days_per_year?: number;
+  is_monthly_quota?: boolean;
+  monthly_limit?: number | null;
   // Backwards compatibility
   leave_type?: LeaveType;
+}
+
+// Monthly usage tracking for monthly quota leave types
+interface MonthlyUsage {
+  profile_id: string;
+  leave_type_id: string;
+  leave_type_name: string;
+  monthly_limit: number;
+  year: number;
+  month: number;
+  used_days: number;
+  remaining_days: number;
 }
 
 const LeaveManagementPage: React.FC = () => {
@@ -122,6 +138,7 @@ const LeaveManagementPage: React.FC = () => {
   const [myRequests, setMyRequests] = useState<LeaveRequest[]>([]);
   const [allRequests, setAllRequests] = useState<LeaveRequest[]>([]);
   const [leaveBalances, setLeaveBalances] = useState<LeaveBalance[]>([]);
+  const [monthlyUsage, setMonthlyUsage] = useState<MonthlyUsage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [applyDialogOpen, setApplyDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -137,7 +154,7 @@ const LeaveManagementPage: React.FC = () => {
     if (!company?.id) return;
     const { data, error } = await supabase
       .from("leave_types")
-      .select("id, name, description, days_per_year, is_paid, is_active")
+      .select("id, name, description, days_per_year, is_paid, is_active, is_monthly_quota, monthly_limit")
       .eq("company_id", company.id)
       .eq("is_active", true);
 
@@ -174,6 +191,8 @@ const LeaveManagementPage: React.FC = () => {
   const fetchLeaveBalances = async () => {
     if (!user?.id) return;
     const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1;
+    
     // Use leave_balance_summary view - includes remaining_days calculation
     const { data, error } = await supabase
       .from("leave_balance_summary")
@@ -183,6 +202,17 @@ const LeaveManagementPage: React.FC = () => {
 
     if (error) console.error("Error fetching leave balances:", error);
     else setLeaveBalances((data || []) as LeaveBalance[]);
+
+    // Fetch monthly usage for monthly quota leave types
+    const { data: monthlyData, error: monthlyError } = await supabase
+      .from("leave_monthly_usage")
+      .select("*")
+      .eq("profile_id", user.id)
+      .eq("year", currentYear)
+      .eq("month", currentMonth);
+
+    if (monthlyError) console.error("Error fetching monthly usage:", monthlyError);
+    else setMonthlyUsage((monthlyData || []) as MonthlyUsage[]);
   };
 
   useEffect(() => {
@@ -589,33 +619,74 @@ const LeaveManagementPage: React.FC = () => {
       </div>
 
       {/* Leave Balances */}
-      {leaveBalances.length > 0 && (
+      {(leaveBalances.length > 0 || monthlyUsage.length > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {leaveBalances.map((balance) => {
-            const totalDays = Number(balance.total_days) || 0;
-            const usedDays = Number(balance.used_days) || 0;
-            const remainingDays = totalDays - usedDays;
+          {/* Regular annual leave balances */}
+          {leaveBalances
+            .filter((balance) => !balance.is_monthly_quota)
+            .map((balance) => {
+              const totalDays = Number(balance.total_days) || 0;
+              const usedDays = Number(balance.used_days) || 0;
+              const remainingDays = totalDays - usedDays;
 
-            return (
-              <Card key={balance.id}>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">
-                        {balance.leave_type_name || "Unknown Leave Type"}
-                      </p>
-                      <p className="text-2xl font-bold">{balance.remaining_days?.toFixed(1) || remainingDays.toFixed(1)}</p>
-                      <p className="text-xs text-muted-foreground">days remaining</p>
+              return (
+                <Card key={balance.id}>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">
+                          {balance.leave_type_name || "Unknown Leave Type"}
+                        </p>
+                        <p className="text-2xl font-bold">{balance.remaining_days?.toFixed(1) || remainingDays.toFixed(1)}</p>
+                        <p className="text-xs text-muted-foreground">days remaining this year</p>
+                      </div>
+                      <div className="text-right text-sm text-muted-foreground">
+                        <p>Used: {usedDays.toFixed(1)}</p>
+                        <p>Total: {totalDays.toFixed(1)}</p>
+                      </div>
                     </div>
-                    <div className="text-right text-sm text-muted-foreground">
-                      <p>Used: {usedDays.toFixed(1)}</p>
-                      <p>Total: {totalDays.toFixed(1)}</p>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          
+          {/* Monthly quota leave types */}
+          {leaveTypes
+            .filter((lt) => lt.is_monthly_quota)
+            .map((leaveType) => {
+              const usage = monthlyUsage.find((u) => u.leave_type_id === leaveType.id);
+              const monthlyLimit = leaveType.monthly_limit || 1;
+              const usedThisMonth = usage ? Number(usage.used_days) : 0;
+              const remainingThisMonth = monthlyLimit - usedThisMonth;
+              const currentMonth = new Date().toLocaleDateString("en-US", { month: "long" });
+
+              return (
+                <Card key={`monthly-${leaveType.id}`} className="border-orange-200 bg-orange-50/30 dark:bg-orange-950/10">
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm text-muted-foreground">
+                            {leaveType.name}
+                          </p>
+                          <Badge variant="outline" className="text-xs text-orange-600 border-orange-200">
+                            Monthly
+                          </Badge>
+                        </div>
+                        <p className="text-2xl font-bold">{remainingThisMonth > 0 ? remainingThisMonth : 0}</p>
+                        <p className="text-xs text-muted-foreground">
+                          days left in {currentMonth}
+                        </p>
+                      </div>
+                      <div className="text-right text-sm text-muted-foreground">
+                        <p>Used: {usedThisMonth}</p>
+                        <p>Limit: {monthlyLimit}/month</p>
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+                  </CardContent>
+                </Card>
+              );
+            })}
         </div>
       )}
 
