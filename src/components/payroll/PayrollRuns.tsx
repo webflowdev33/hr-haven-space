@@ -13,7 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePermissions } from '@/contexts/PermissionContext';
-import { Loader2, Plus, Play, CheckCircle, XCircle, Eye, Clock, AlertTriangle, Download, IndianRupee } from 'lucide-react';
+import { Loader2, Plus, Play, CheckCircle, XCircle, Eye, Clock, AlertTriangle, Download, IndianRupee, Trash2 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 
 interface PayrollRun {
@@ -149,6 +149,31 @@ const PayrollRuns: React.FC = () => {
         return;
       }
 
+      // Check for existing payslips in the same pay period to prevent duplicates
+      const { data: existingPayslips, error: existingError } = await supabase
+        .from('payslips')
+        .select('profile_id')
+        .eq('pay_period_start', newRun.pay_period_start)
+        .eq('pay_period_end', newRun.pay_period_end);
+
+      if (existingError) throw existingError;
+
+      const existingProfileIds = new Set((existingPayslips || []).map(p => p.profile_id));
+      
+      // Filter out employees who already have payslips for this period
+      const eligibleSalaries = salaries.filter(s => !existingProfileIds.has(s.profile_id));
+
+      if (eligibleSalaries.length === 0) {
+        toast.error('All employees already have payslips for this pay period.');
+        setProcessing(false);
+        return;
+      }
+
+      if (eligibleSalaries.length < salaries.length) {
+        const skipped = salaries.length - eligibleSalaries.length;
+        toast.info(`Skipping ${skipped} employee(s) who already have payslips for this period.`);
+      }
+
       // Create payroll run
       const { data: payrollRun, error: runError } = await supabase
         .from('payroll_runs')
@@ -173,7 +198,7 @@ const PayrollRuns: React.FC = () => {
       let totalEmployerCost = 0;
 
       // Process each employee
-      for (const salary of salaries) {
+      for (const salary of eligibleSalaries) {
         // Fetch salary components
         const { data: components } = await supabase
           .from('employee_salary_components')
@@ -333,11 +358,11 @@ const PayrollRuns: React.FC = () => {
           total_deductions: totalDeductions,
           total_net: totalNet,
           total_employer_cost: totalEmployerCost,
-          employee_count: salaries.length,
+          employee_count: eligibleSalaries.length,
         })
         .eq('id', payrollRun.id);
 
-      toast.success(`Payroll processed for ${salaries.length} employees`);
+      toast.success(`Payroll processed for ${eligibleSalaries.length} employees`);
       setDialogOpen(false);
       fetchRuns();
     } catch (error: any) {
@@ -416,6 +441,47 @@ const PayrollRuns: React.FC = () => {
       fetchRuns();
     } catch (error: any) {
       toast.error(error.message || 'Failed to cancel payroll run');
+    }
+  };
+
+  const deletePayrollRun = async (runId: string) => {
+    if (!confirm('Are you sure you want to permanently delete this payroll run? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      // Delete payslip items first
+      const { data: payslips } = await supabase
+        .from('payslips')
+        .select('id')
+        .eq('payroll_run_id', runId);
+
+      if (payslips && payslips.length > 0) {
+        const payslipIds = payslips.map(p => p.id);
+        await supabase
+          .from('payslip_items')
+          .delete()
+          .in('payslip_id', payslipIds);
+        
+        await supabase
+          .from('payslips')
+          .delete()
+          .eq('payroll_run_id', runId);
+      }
+
+      // Permanently delete the payroll run
+      const { error } = await supabase
+        .from('payroll_runs')
+        .delete()
+        .eq('id', runId);
+
+      if (error) throw error;
+
+      toast.success('Payroll run deleted permanently');
+      setDetailsDialogOpen(false);
+      fetchRuns();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete payroll run');
     }
   };
 
@@ -530,6 +596,15 @@ const PayrollRuns: React.FC = () => {
                             onClick={() => updateStatus(run.id, 'paid')}
                           >
                             Mark Paid
+                          </Button>
+                        )}
+                        {canManage && (run.status === 'cancelled' || run.status === 'draft') && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => deletePayrollRun(run.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
                         )}
                       </div>
