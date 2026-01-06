@@ -62,7 +62,9 @@ import {
   Receipt,
   Filter,
   Download,
+  PlusCircle,
 } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
 
 interface ExpensesListProps {
   view: 'my' | 'all' | 'pending';
@@ -110,6 +112,8 @@ const ExpensesList: React.FC<ExpensesListProps> = ({ view }) => {
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
 
   const [formData, setFormData] = useState({
     category_id: '',
@@ -311,6 +315,35 @@ const ExpensesList: React.FC<ExpensesListProps> = ({ view }) => {
     },
   });
 
+  // Create category inline
+  const createCategoryMutation = useMutation({
+    mutationFn: async (name: string) => {
+      if (!company?.id) throw new Error('Missing company');
+      const code = name.toUpperCase().replace(/\s+/g, '_').slice(0, 20);
+      const { data, error } = await supabase
+        .from('expense_categories')
+        .insert({
+          company_id: company.id,
+          name,
+          code,
+        })
+        .select('id')
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['expense-categories'] });
+      setFormData({ ...formData, category_id: data.id });
+      setNewCategoryName('');
+      setIsAddingCategory(false);
+      toast.success('Category created');
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to create category: ${error.message}`);
+    },
+  });
+
   const resetForm = () => {
     setFormData({
       category_id: '',
@@ -320,6 +353,8 @@ const ExpensesList: React.FC<ExpensesListProps> = ({ view }) => {
       notes: '',
       receipt_url: '',
     });
+    setIsAddingCategory(false);
+    setNewCategoryName('');
   };
 
   const handleEdit = (expense: Expense) => {
@@ -543,21 +578,62 @@ const ExpensesList: React.FC<ExpensesListProps> = ({ view }) => {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Category *</Label>
-              <Select
-                value={formData.category_id}
-                onValueChange={(value) => setFormData({ ...formData, category_id: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((cat) => (
-                    <SelectItem key={cat.id} value={cat.id}>
-                      {cat.name}
+              {isAddingCategory ? (
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="New category name"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    autoFocus
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => newCategoryName.trim() && createCategoryMutation.mutate(newCategoryName.trim())}
+                    disabled={!newCategoryName.trim() || createCategoryMutation.isPending}
+                  >
+                    Add
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setIsAddingCategory(false);
+                      setNewCategoryName('');
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              ) : (
+                <Select
+                  value={formData.category_id}
+                  onValueChange={(value) => {
+                    if (value === '__add_new__') {
+                      setIsAddingCategory(true);
+                    } else {
+                      setFormData({ ...formData, category_id: value });
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </SelectItem>
+                    ))}
+                    <Separator className="my-1" />
+                    <SelectItem value="__add_new__" className="text-primary">
+                      <span className="flex items-center gap-2">
+                        <PlusCircle className="h-4 w-4" />
+                        Add New Category
+                      </span>
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                  </SelectContent>
+                </Select>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
