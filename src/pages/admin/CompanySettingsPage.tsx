@@ -12,8 +12,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ColorPicker } from '@/components/ui/color-picker';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { Building2, Palette, Save, Loader2, Plus, Trash2, Edit, FolderTree } from 'lucide-react';
+import { Building2, Palette, Save, Loader2, Plus, Trash2, Edit, FolderTree, AlertTriangle, RotateCcw } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Department = Tables<'departments'>;
@@ -26,6 +27,9 @@ const CompanySettingsPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [departmentDialogOpen, setDepartmentDialogOpen] = useState(false);
   const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [resetConfirmation, setResetConfirmation] = useState('');
+  const [resetting, setResetting] = useState(false);
   const [departmentForm, setDepartmentForm] = useState({
     name: '',
     description: '',
@@ -210,6 +214,32 @@ const CompanySettingsPage: React.FC = () => {
     }
   };
 
+  const handleResetCompanyData = async () => {
+    if (resetConfirmation !== 'RESET ALL DATA') {
+      toast.error("Please type 'RESET ALL DATA' to confirm");
+      return;
+    }
+    
+    setResetting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('reset-company-data', {
+        body: { confirmation: resetConfirmation },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast.success(data.message || 'Company data reset successfully');
+      setResetDialogOpen(false);
+      setResetConfirmation('');
+      await refreshCompany();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to reset company data');
+    } finally {
+      setResetting(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -260,6 +290,10 @@ const CompanySettingsPage: React.FC = () => {
           <TabsTrigger value="departments" className="gap-2">
             <FolderTree className="h-4 w-4" />
             Departments
+          </TabsTrigger>
+          <TabsTrigger value="danger" className="gap-2 text-destructive">
+            <AlertTriangle className="h-4 w-4" />
+            Danger Zone
           </TabsTrigger>
         </TabsList>
 
@@ -609,7 +643,102 @@ const CompanySettingsPage: React.FC = () => {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Danger Zone Tab */}
+        <TabsContent value="danger">
+          <Card className="border-destructive">
+            <CardHeader>
+              <CardTitle className="text-destructive flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5" />
+                Danger Zone
+              </CardTitle>
+              <CardDescription>
+                Irreversible and destructive actions. Please proceed with caution.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="p-4 border border-destructive/50 rounded-lg bg-destructive/5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <h4 className="font-semibold text-foreground">Reset All Company Data</h4>
+                    <p className="text-sm text-muted-foreground">
+                      This will permanently delete all employees, attendance records, leave data, payroll information, expenses, and other company data. 
+                      Only your admin account and company settings will be preserved.
+                    </p>
+                  </div>
+                  <Button 
+                    variant="destructive" 
+                    onClick={() => setResetDialogOpen(true)}
+                    className="shrink-0"
+                  >
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    Reset Data
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
+
+      {/* Reset Company Data Confirmation Dialog */}
+      <AlertDialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Reset All Company Data
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4">
+                <p>
+                  This action will <strong>permanently delete</strong> all company data including:
+                </p>
+                <ul className="list-disc list-inside text-sm space-y-1">
+                  <li>All employees (except your admin account)</li>
+                  <li>Attendance records and punches</li>
+                  <li>Leave requests and balances</li>
+                  <li>Payroll data and salary information</li>
+                  <li>Expenses and expense categories</li>
+                  <li>Onboarding templates and progress</li>
+                  <li>Notifications and audit logs</li>
+                </ul>
+                <p className="font-medium text-destructive">
+                  This action cannot be undone!
+                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="reset-confirmation">
+                    Type <strong>RESET ALL DATA</strong> to confirm:
+                  </Label>
+                  <Input
+                    id="reset-confirmation"
+                    value={resetConfirmation}
+                    onChange={(e) => setResetConfirmation(e.target.value)}
+                    placeholder="RESET ALL DATA"
+                    className="font-mono"
+                  />
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel 
+              disabled={resetting}
+              onClick={() => setResetConfirmation('')}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleResetCompanyData}
+              disabled={resetting || resetConfirmation !== 'RESET ALL DATA'}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {resetting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+              Reset All Data
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
