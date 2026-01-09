@@ -125,6 +125,7 @@ const UserManagementPage: React.FC = () => {
       }
 
       // Call the edge function to invite user
+      console.log('Invoking invite-user edge function...');
       const { data, error } = await supabase.functions.invoke('invite-user', {
         body: {
           email: inviteForm.email.trim(),
@@ -134,7 +135,12 @@ const UserManagementPage: React.FC = () => {
         },
       });
 
-      if (error) throw error;
+      console.log('Edge function response:', { data, error });
+
+      if (error) {
+        console.error('Edge function error:', error);
+        throw new Error(error.message || 'Failed to connect to server. Check if edge functions are running.');
+      }
       if (data?.error) throw new Error(data.error);
 
       // Store credentials for sharing
