@@ -1,8 +1,14 @@
-// Allowed origins for CORS - includes Lovable preview and production domains
+// Allowed origins for CORS - includes Lovable preview, production domains, and local development
 const allowedOrigins = [
   'https://lovable.dev',
   'https://preview--bmyoxuiejkvjieoibeys.lovable.app',
   'https://bmyoxuiejkvjieoibeys.lovable.app',
+  // Local development origins
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://localhost:8080',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000',
 ];
 
 // Helper function to get CORS headers based on request origin
