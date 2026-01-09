@@ -124,14 +124,6 @@ export const navigationConfig: NavSection[] = [
         module: 'REVENUE',
         permission: 'revenue.view',
       },
-      {
-        id: 'revenue-reports',
-        title: 'Reports',
-        href: '/revenue/reports',
-        icon: PieChart,
-        module: 'REVENUE',
-        permission: 'revenue.view',
-      },
     ],
   },
   {
