@@ -26,43 +26,13 @@ const Dashboard: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-muted/30">
-      {/* Header */}
-      {/* <header className="border-b bg-background">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
-              <Building2 className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <div>
-              <h1 className="font-semibold text-foreground">{company?.name || 'HRMS'}</h1>
-              <p className="text-sm text-muted-foreground">Human Resource Management</p>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-4">
-            <div className="text-right">
-              <p className="text-sm font-medium text-foreground">{profile?.full_name || user?.email}</p>
-              <p className="text-xs text-muted-foreground">{profile?.email}</p>
-            </div>
-            <Button variant="ghost" size="icon">
-              <Settings className="h-5 w-5" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={handleSignOut}>
-              <LogOut className="h-5 w-5" />
-            </Button>
-          </div>
-        </div>
-      </header> */}
-
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-foreground">
-            Welcome back, {profile?.full_name?.split(" ")[0] || "User"}!
-          </h2>
-          <p className="text-muted-foreground">Here's an overview of your HRMS dashboard.</p>
-        </div>
+    <div>
+      <div className="mb-6">
+        <h2 className="text-xl sm:text-2xl font-bold text-foreground">
+          Welcome back, {profile?.full_name?.split(" ")[0] || "User"}!
+        </h2>
+        <p className="text-sm text-muted-foreground">Here's an overview of your HRMS dashboard.</p>
+      </div>
 
         {/* HR Dashboard Widgets */}
         {enabledModules.includes("HR_CORE") && (
@@ -160,7 +130,6 @@ const Dashboard: React.FC = () => {
             </CardContent>
           </Card>
         )}
-      </main>
     </div>
   );
 };
