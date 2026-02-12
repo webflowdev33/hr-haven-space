@@ -158,7 +158,7 @@ const HRDashboardWidgets: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/hr/employees')}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Employees</CardTitle>
@@ -219,9 +219,9 @@ const HRDashboardWidgets: React.FC = () => {
       {/* Recent Leave Requests - Only for admins */}
       {canViewHRStats && isModuleEnabled('LEAVE') && stats?.recentLeaveRequests && stats.recentLeaveRequests.length > 0 && (
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
-              <CardTitle>Recent Leave Requests</CardTitle>
+              <CardTitle className="text-base sm:text-lg">Recent Leave Requests</CardTitle>
               <CardDescription>Latest leave requests from your team</CardDescription>
             </div>
             <Button variant="ghost" size="sm" onClick={() => navigate('/hr/leave')}>
