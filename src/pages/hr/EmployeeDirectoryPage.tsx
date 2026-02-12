@@ -224,7 +224,7 @@ const EmployeeDirectoryPage: React.FC = () => {
       </Tabs>
 
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-full sm:max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center justify-between">
               <DialogTitle>Employee Details</DialogTitle>
@@ -261,7 +261,7 @@ const EmployeeDirectoryPage: React.FC = () => {
                       <p className="text-muted-foreground">{selectedEmployee.designation}</p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <Label className="text-muted-foreground">Email</Label>
                       <div className="flex items-center gap-2">
@@ -301,7 +301,7 @@ const EmployeeDirectoryPage: React.FC = () => {
                   </div>
                 </TabsContent>
                 <TabsContent value="employment" className="space-y-4 mt-4">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <Label className="text-muted-foreground">Employee ID</Label>
                       <span>{selectedEmployee.employee_id || 'Not assigned'}</span>
@@ -345,7 +345,7 @@ const EmployeeDirectoryPage: React.FC = () => {
                   </div>
                 </TabsContent>
                 <TabsContent value="emergency" className="space-y-4 mt-4">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <Label className="text-muted-foreground">Contact Name</Label>
                       <span>{selectedEmployee.emergency_contact_name || 'Not provided'}</span>
