@@ -12,27 +12,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Plus, Loader2, Pencil, Trash2, Calendar } from 'lucide-react';
-import { leaveTypeSchema, getValidationError } from '@/lib/validations';
 
 interface LeaveType {
   id: string;
   name: string;
   description: string | null;
   days_per_year: number;
-  monthly_credit: number;
   is_paid: boolean;
   is_carry_forward: boolean;
   max_carry_forward_days: number | null;
   is_active: boolean;
-  is_monthly_quota: boolean;
-  monthly_limit: number | null;
 }
 
-interface LeaveTypeConfigProps {
-  onUpdate?: () => void;
-}
-
-const LeaveTypeConfig: React.FC<LeaveTypeConfigProps> = ({ onUpdate }) => {
+const LeaveTypeConfig: React.FC = () => {
   const { company } = useCompany();
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -42,14 +34,11 @@ const LeaveTypeConfig: React.FC<LeaveTypeConfigProps> = ({ onUpdate }) => {
   const [form, setForm] = useState({
     name: '',
     description: '',
-    days_per_year: 18,
-    monthly_credit: 1.5,
+    days_per_year: 12,
     is_paid: true,
-    is_carry_forward: true,
+    is_carry_forward: false,
     max_carry_forward_days: 0,
     is_active: true,
-    is_monthly_quota: false,
-    monthly_limit: 1,
   });
 
   const fetchLeaveTypes = async () => {
@@ -57,7 +46,7 @@ const LeaveTypeConfig: React.FC<LeaveTypeConfigProps> = ({ onUpdate }) => {
     setIsLoading(true);
     const { data, error } = await supabase
       .from('leave_types')
-      .select('id, name, description, days_per_year, monthly_credit, is_paid, is_carry_forward, max_carry_forward_days, is_active, is_monthly_quota, monthly_limit, company_id')
+      .select('*')
       .eq('company_id', company.id)
       .order('name');
 
@@ -77,14 +66,11 @@ const LeaveTypeConfig: React.FC<LeaveTypeConfigProps> = ({ onUpdate }) => {
     setForm({
       name: '',
       description: '',
-      days_per_year: 18,
-      monthly_credit: 1.5,
+      days_per_year: 12,
       is_paid: true,
-      is_carry_forward: true,
+      is_carry_forward: false,
       max_carry_forward_days: 0,
       is_active: true,
-      is_monthly_quota: false,
-      monthly_limit: 1,
     });
     setEditingType(null);
   };
@@ -95,27 +81,16 @@ const LeaveTypeConfig: React.FC<LeaveTypeConfigProps> = ({ onUpdate }) => {
       name: leaveType.name,
       description: leaveType.description || '',
       days_per_year: leaveType.days_per_year,
-      monthly_credit: leaveType.monthly_credit || 1.5,
       is_paid: leaveType.is_paid,
       is_carry_forward: leaveType.is_carry_forward,
       max_carry_forward_days: leaveType.max_carry_forward_days || 0,
       is_active: leaveType.is_active,
-      is_monthly_quota: leaveType.is_monthly_quota || false,
-      monthly_limit: leaveType.monthly_limit || 1,
     });
     setDialogOpen(true);
   };
 
   const handleSave = async () => {
-    if (!company?.id) return;
-    
-    // Validate form with Zod schema
-    const validationResult = leaveTypeSchema.safeParse(form);
-    const validationError = getValidationError(validationResult);
-    if (validationError) {
-      toast.error(validationError);
-      return;
-    }
+    if (!company?.id || !form.name.trim()) return;
 
     setSaving(true);
     try {
@@ -125,33 +100,15 @@ const LeaveTypeConfig: React.FC<LeaveTypeConfigProps> = ({ onUpdate }) => {
           .update({
             name: form.name.trim(),
             description: form.description.trim() || null,
-            days_per_year: form.is_monthly_quota ? 0 : form.days_per_year,
-            monthly_credit: form.monthly_credit,
+            days_per_year: form.days_per_year,
             is_paid: form.is_paid,
-            is_carry_forward: form.is_monthly_quota ? false : form.is_carry_forward,
-            max_carry_forward_days: form.is_carry_forward && !form.is_monthly_quota ? form.max_carry_forward_days : null,
+            is_carry_forward: form.is_carry_forward,
+            max_carry_forward_days: form.is_carry_forward ? form.max_carry_forward_days : null,
             is_active: form.is_active,
-            is_monthly_quota: form.is_monthly_quota,
-            monthly_limit: form.is_monthly_quota ? form.monthly_limit : null,
           })
           .eq('id', editingType.id);
 
         if (error) throw error;
-
-        // Sync leave balances if days_per_year changed
-        if (editingType.days_per_year !== form.days_per_year) {
-          const currentYear = new Date().getFullYear();
-          const { error: balanceError } = await supabase
-            .from('leave_balances')
-            .update({ total_days: form.days_per_year })
-            .eq('leave_type_id', editingType.id)
-            .eq('year', currentYear);
-
-          if (balanceError) {
-            console.error('Error syncing leave balances:', balanceError);
-          }
-        }
-
         toast.success('Leave type updated');
       } else {
         const { error } = await supabase
@@ -160,14 +117,11 @@ const LeaveTypeConfig: React.FC<LeaveTypeConfigProps> = ({ onUpdate }) => {
             company_id: company.id,
             name: form.name.trim(),
             description: form.description.trim() || null,
-            days_per_year: form.is_monthly_quota ? 0 : form.days_per_year,
-            monthly_credit: form.monthly_credit,
+            days_per_year: form.days_per_year,
             is_paid: form.is_paid,
-            is_carry_forward: form.is_monthly_quota ? false : form.is_carry_forward,
-            max_carry_forward_days: form.is_carry_forward && !form.is_monthly_quota ? form.max_carry_forward_days : null,
+            is_carry_forward: form.is_carry_forward,
+            max_carry_forward_days: form.is_carry_forward ? form.max_carry_forward_days : null,
             is_active: form.is_active,
-            is_monthly_quota: form.is_monthly_quota,
-            monthly_limit: form.is_monthly_quota ? form.monthly_limit : null,
           });
 
         if (error) throw error;
@@ -177,7 +131,6 @@ const LeaveTypeConfig: React.FC<LeaveTypeConfigProps> = ({ onUpdate }) => {
       setDialogOpen(false);
       resetForm();
       fetchLeaveTypes();
-      onUpdate?.();
     } catch (error: any) {
       toast.error(error.message || 'Failed to save leave type');
     } finally {
@@ -197,7 +150,6 @@ const LeaveTypeConfig: React.FC<LeaveTypeConfigProps> = ({ onUpdate }) => {
       if (error) throw error;
       toast.success('Leave type deleted');
       fetchLeaveTypes();
-      onUpdate?.();
     } catch (error: any) {
       toast.error(error.message || 'Failed to delete leave type');
     }
@@ -248,58 +200,15 @@ const LeaveTypeConfig: React.FC<LeaveTypeConfigProps> = ({ onUpdate }) => {
                   placeholder="Brief description of this leave type"
                 />
               </div>
-              {/* Monthly Quota Toggle */}
-              <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/50">
-                <div>
-                  <Label className="text-sm font-medium">Monthly Quota (Use-it-or-lose-it)</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Leave doesn't accumulate - fixed limit per month (e.g., Sick Leave)
-                  </p>
-                </div>
-                <Switch
-                  checked={form.is_monthly_quota}
-                  onCheckedChange={(v) => setForm({ ...form, is_monthly_quota: v })}
+              <div className="space-y-2">
+                <Label>Days Per Year</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={form.days_per_year}
+                  onChange={(e) => setForm({ ...form, days_per_year: parseInt(e.target.value) || 0 })}
                 />
               </div>
-
-              {form.is_monthly_quota ? (
-                <div className="space-y-2">
-                  <Label>Days Per Month</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={form.monthly_limit}
-                    onChange={(e) => setForm({ ...form, monthly_limit: parseInt(e.target.value) || 1 })}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Paid days allowed per month. Unused days don't carry over.
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Days Per Year</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={form.days_per_year}
-                      onChange={(e) => setForm({ ...form, days_per_year: parseInt(e.target.value) || 0 })}
-                    />
-                    <p className="text-xs text-muted-foreground">Maximum annual entitlement</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Monthly Credit</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      step={0.5}
-                      value={form.monthly_credit}
-                      onChange={(e) => setForm({ ...form, monthly_credit: parseFloat(e.target.value) || 0 })}
-                    />
-                    <p className="text-xs text-muted-foreground">Credits earned per month</p>
-                  </div>
-                </div>
-              )}
               <div className="flex items-center justify-between">
                 <Label>Paid Leave</Label>
                 <Switch
@@ -307,27 +216,23 @@ const LeaveTypeConfig: React.FC<LeaveTypeConfigProps> = ({ onUpdate }) => {
                   onCheckedChange={(v) => setForm({ ...form, is_paid: v })}
                 />
               </div>
-              {!form.is_monthly_quota && (
-                <>
-                  <div className="flex items-center justify-between">
-                    <Label>Allow Carry Forward</Label>
-                    <Switch
-                      checked={form.is_carry_forward}
-                      onCheckedChange={(v) => setForm({ ...form, is_carry_forward: v })}
-                    />
-                  </div>
-                  {form.is_carry_forward && (
-                    <div className="space-y-2">
-                      <Label>Max Carry Forward Days</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        value={form.max_carry_forward_days}
-                        onChange={(e) => setForm({ ...form, max_carry_forward_days: parseInt(e.target.value) || 0 })}
-                      />
-                    </div>
-                  )}
-                </>
+              <div className="flex items-center justify-between">
+                <Label>Allow Carry Forward</Label>
+                <Switch
+                  checked={form.is_carry_forward}
+                  onCheckedChange={(v) => setForm({ ...form, is_carry_forward: v })}
+                />
+              </div>
+              {form.is_carry_forward && (
+                <div className="space-y-2">
+                  <Label>Max Carry Forward Days</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={form.max_carry_forward_days}
+                    onChange={(e) => setForm({ ...form, max_carry_forward_days: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
               )}
               <div className="flex items-center justify-between">
                 <Label>Active</Label>
@@ -356,7 +261,7 @@ const LeaveTypeConfig: React.FC<LeaveTypeConfigProps> = ({ onUpdate }) => {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead>Allocation</TableHead>
+                <TableHead>Days/Year</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Carry Forward</TableHead>
                 <TableHead>Status</TableHead>
@@ -374,32 +279,14 @@ const LeaveTypeConfig: React.FC<LeaveTypeConfigProps> = ({ onUpdate }) => {
                       )}
                     </div>
                   </TableCell>
-                  <TableCell>
-                    {type.is_monthly_quota ? (
-                      <div>
-                        <span className="font-medium">{type.monthly_limit || 1} day/month</span>
-                        <Badge variant="outline" className="ml-2 text-xs text-orange-600 border-orange-200">
-                          Monthly
-                        </Badge>
-                      </div>
-                    ) : (
-                      <div>
-                        <span className="font-medium">{type.days_per_year} days/year</span>
-                        <span className="text-xs text-muted-foreground ml-1">
-                          ({type.monthly_credit || 1.5}/mo)
-                        </span>
-                      </div>
-                    )}
-                  </TableCell>
+                  <TableCell>{type.days_per_year}</TableCell>
                   <TableCell>
                     <Badge variant={type.is_paid ? 'default' : 'secondary'}>
                       {type.is_paid ? 'Paid' : 'Unpaid'}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {type.is_monthly_quota ? (
-                      <span className="text-sm text-muted-foreground">N/A</span>
-                    ) : type.is_carry_forward ? (
+                    {type.is_carry_forward ? (
                       <span className="text-sm">Up to {type.max_carry_forward_days} days</span>
                     ) : (
                       <span className="text-sm text-muted-foreground">No</span>

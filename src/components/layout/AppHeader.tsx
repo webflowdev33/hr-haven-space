@@ -1,5 +1,4 @@
-import { Menu, User, LogOut } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Menu, Bell, User, LogOut, Settings } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -13,12 +12,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { NotificationDropdown } from '@/components/notifications/NotificationDropdown';
 
 export const AppHeader = () => {
   const { user, profile, signOut } = useAuth();
   const { company } = useCompany();
-  const navigate = useNavigate();
 
   const getInitials = (name: string | null | undefined) => {
     if (!name) return 'U';
@@ -41,7 +38,10 @@ export const AppHeader = () => {
 
       <div className="flex items-center gap-2">
         {/* Notifications */}
-        <NotificationDropdown />
+        <Button variant="ghost" size="icon" className="relative">
+          <Bell className="h-5 w-5" />
+          <span className="sr-only">Notifications</span>
+        </Button>
 
         {/* User Menu */}
         <DropdownMenu>
@@ -66,9 +66,13 @@ export const AppHeader = () => {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => navigate('/profile')}>
+            <DropdownMenuItem>
               <User className="mr-2 h-4 w-4" />
               <span>Profile</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem>
+              <Settings className="mr-2 h-4 w-4" />
+              <span>Settings</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={signOut} className="text-destructive focus:text-destructive">

@@ -1,9 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { getCorsHeaders } from '../_shared/cors.ts'
+import { corsHeaders } from '../_shared/cors.ts'
 
 Deno.serve(async (req) => {
-  const corsHeaders = getCorsHeaders(req);
-  
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -71,46 +69,16 @@ Deno.serve(async (req) => {
     // Parse request body
     const { email, full_name, password, department_id } = await req.json()
 
-    // Validate email
-    if (!email || typeof email !== 'string') {
+    if (!email) {
       return new Response(
         JSON.stringify({ error: 'Email is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email.trim()) || email.length > 255) {
+    if (!password || password.length < 6) {
       return new Response(
-        JSON.stringify({ error: 'Please enter a valid email address' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // Validate full_name
-    if (full_name && (typeof full_name !== 'string' || full_name.length > 100)) {
-      return new Response(
-        JSON.stringify({ error: 'Full name must be less than 100 characters' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // Validate password with strong requirements
-    if (!password || typeof password !== 'string' || password.length < 12) {
-      return new Response(
-        JSON.stringify({ error: 'Password must be at least 12 characters' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    const hasUppercase = /[A-Z]/.test(password)
-    const hasLowercase = /[a-z]/.test(password)
-    const hasNumber = /[0-9]/.test(password)
-    const hasSpecial = /[^A-Za-z0-9]/.test(password)
-
-    if (!hasUppercase || !hasLowercase || !hasNumber || !hasSpecial) {
-      return new Response(
-        JSON.stringify({ error: 'Password must contain uppercase, lowercase, number, and special character' }),
+        JSON.stringify({ error: 'Password must be at least 6 characters' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }

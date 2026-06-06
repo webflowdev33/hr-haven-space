@@ -53,7 +53,8 @@ const DepartmentManagement: React.FC = () => {
         .from('departments')
         .select(`
           *,
-          head:profiles!departments_head_id_fkey(full_name)
+          head:profiles!departments_head_id_fkey(full_name),
+          parent:departments!departments_parent_id_fkey(name)
         `)
         .eq('company_id', company.id)
         .order('name');
@@ -77,15 +78,10 @@ const DepartmentManagement: React.FC = () => {
         }
       });
 
-      const deptsWithCounts = (deptData || []).map(d => {
-        // Find parent department name manually
-        const parentDept = deptData?.find(pd => pd.id === d.parent_id);
-        return {
-          ...d,
-          employee_count: counts[d.id] || 0,
-          parent: parentDept ? [{ name: parentDept.name }] : null,
-        };
-      });
+      const deptsWithCounts = (deptData || []).map(d => ({
+        ...d,
+        employee_count: counts[d.id] || 0,
+      }));
 
       setDepartments(deptsWithCounts as DepartmentWithDetails[]);
     } catch (error: any) {
@@ -333,12 +329,12 @@ const DepartmentManagement: React.FC = () => {
             </div>
             <div className="space-y-2">
               <Label>Department Head</Label>
-              <Select value={form.head_id || "none"} onValueChange={(v) => setForm({ ...form, head_id: v === "none" ? "" : v })}>
+              <Select value={form.head_id} onValueChange={(v) => setForm({ ...form, head_id: v })}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select head" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">No Head</SelectItem>
+                  <SelectItem value="">No Head</SelectItem>
                   {employees.map((emp) => (
                     <SelectItem key={emp.id} value={emp.id}>
                       {emp.full_name || 'Unnamed'}
@@ -349,12 +345,12 @@ const DepartmentManagement: React.FC = () => {
             </div>
             <div className="space-y-2">
               <Label>Parent Department</Label>
-              <Select value={form.parent_id || "none"} onValueChange={(v) => setForm({ ...form, parent_id: v === "none" ? "" : v })}>
+              <Select value={form.parent_id} onValueChange={(v) => setForm({ ...form, parent_id: v })}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select parent (optional)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">None (Root Level)</SelectItem>
+                  <SelectItem value="">None (Root Level)</SelectItem>
                   {departments
                     .filter(d => d.id !== editingDept?.id)
                     .map((dept) => (

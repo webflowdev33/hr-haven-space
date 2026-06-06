@@ -19,18 +19,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
 
 interface Company {
   id: string;
@@ -48,33 +37,6 @@ export default function CompaniesPage() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [companyToDelete, setCompanyToDelete] = useState<Company | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  const handleDeleteCompany = async () => {
-    if (!companyToDelete) return;
-
-    setIsDeleting(true);
-    try {
-      const { error } = await supabase
-        .from('companies')
-        .delete()
-        .eq('id', companyToDelete.id);
-
-      if (error) throw error;
-
-      setCompanies(companies.filter(c => c.id !== companyToDelete.id));
-      toast.success(`Company "${companyToDelete.name}" deleted successfully`);
-    } catch (error: any) {
-      console.error('Error deleting company:', error);
-      toast.error(error.message || 'Failed to delete company');
-    } finally {
-      setIsDeleting(false);
-      setDeleteDialogOpen(false);
-      setCompanyToDelete(null);
-    }
-  };
 
   useEffect(() => {
     const fetchCompanies = async () => {
@@ -158,12 +120,12 @@ export default function CompaniesPage() {
 
       <Card>
         <CardHeader>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="flex items-center justify-between">
             <div>
               <CardTitle>All Companies</CardTitle>
               <CardDescription>{companies.length} companies registered</CardDescription>
             </div>
-            <div className="relative w-full sm:w-64">
+            <div className="relative w-64">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search companies..."
@@ -175,16 +137,15 @@ export default function CompaniesPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Company</TableHead>
-                <TableHead className="hidden sm:table-cell">Industry</TableHead>
-                <TableHead className="hidden md:table-cell">Size</TableHead>
+                <TableHead>Industry</TableHead>
+                <TableHead>Size</TableHead>
                 <TableHead>Users</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="hidden sm:table-cell">Created</TableHead>
+                <TableHead>Created</TableHead>
                 <TableHead className="w-12"></TableHead>
               </TableRow>
             </TableHeader>
@@ -211,8 +172,8 @@ export default function CompaniesPage() {
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="hidden sm:table-cell">{company.industry || '-'}</TableCell>
-                    <TableCell className="hidden md:table-cell">{company.size || '-'}</TableCell>
+                    <TableCell>{company.industry || '-'}</TableCell>
+                    <TableCell>{company.size || '-'}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
                         <Users className="h-4 w-4 text-muted-foreground" />
@@ -220,7 +181,7 @@ export default function CompaniesPage() {
                       </div>
                     </TableCell>
                     <TableCell>{getStatusBadge(company.subscription_status || 'none')}</TableCell>
-                    <TableCell className="hidden sm:table-cell text-muted-foreground">
+                    <TableCell className="text-muted-foreground">
                       {new Date(company.created_at).toLocaleDateString()}
                     </TableCell>
                     <TableCell>
@@ -235,13 +196,7 @@ export default function CompaniesPage() {
                             <Eye className="mr-2 h-4 w-4" />
                             View Details
                           </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            className="text-destructive"
-                            onClick={() => {
-                              setCompanyToDelete(company);
-                              setDeleteDialogOpen(true);
-                            }}
-                          >
+                          <DropdownMenuItem className="text-destructive">
                             <Trash2 className="mr-2 h-4 w-4" />
                             Delete
                           </DropdownMenuItem>
@@ -253,30 +208,8 @@ export default function CompaniesPage() {
               )}
             </TableBody>
           </Table>
-          </div>
         </CardContent>
       </Card>
-
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Company</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete "{companyToDelete?.name}"? This action cannot be undone and will remove all associated data including users, subscriptions, and settings.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteCompany}
-              disabled={isDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isDeleting ? 'Deleting...' : 'Delete'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

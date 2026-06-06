@@ -14,11 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import { Search, Plus, MoreHorizontal, UserPlus, Mail, Loader2, Shield, UserX, UserCheck, Building2, MessageCircle, Send, Copy, Check, Trash2, AlertTriangle } from 'lucide-react';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Search, Plus, MoreHorizontal, UserPlus, Mail, Loader2, Shield, UserX, UserCheck, Building2 } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
-import { userInviteSchema, getValidationError } from '@/lib/validations';
 
 type Profile = Tables<'profiles'>;
 type Role = Tables<'roles'>;
@@ -37,7 +34,6 @@ const UserManagementPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
-  const [credentialsDialogOpen, setCredentialsDialogOpen] = useState(false);
   const [assignRoleDialogOpen, setAssignRoleDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserWithRoles | null>(null);
   const [inviteForm, setInviteForm] = useState({
@@ -45,17 +41,9 @@ const UserManagementPage: React.FC = () => {
     full_name: '',
     password: '',
     department_id: '',
-    phone: '',
   });
-  const [createdUserCredentials, setCreatedUserCredentials] = useState<{email: string; password: string; full_name: string; phone: string} | null>(null);
-  const [sendMethod, setSendMethod] = useState<'email' | 'whatsapp' | 'copy'>('email');
-  const [sendingCredentials, setSendingCredentials] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [selectedRoleId, setSelectedRoleId] = useState('');
   const [saving, setSaving] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [userToDelete, setUserToDelete] = useState<UserWithRoles | null>(null);
-  const [deleting, setDeleting] = useState(false);
 
   const fetchUsers = async () => {
     if (!company?.id) return;
@@ -87,7 +75,7 @@ const UserManagementPage: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('roles')
-        .select('id, name, description, is_active, is_system_role, created_at, company_id, created_by, updated_at')
+        .select('*')
         .eq('company_id', company.id)
         .eq('is_active', true);
 
@@ -105,17 +93,17 @@ const UserManagementPage: React.FC = () => {
     }
   }, [company?.id]);
 
+  const isValidEmail = (email: string) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  };
+
   const handleInviteUser = async () => {
     if (!company?.id || !user?.id) return;
     
-    // Validate form with Zod schema
-    const validationResult = userInviteSchema.safeParse(inviteForm);
-    const validationError = getValidationError(validationResult);
-    if (validationError) {
-      toast.error(validationError);
+    if (!isValidEmail(inviteForm.email)) {
+      toast.error('Please enter a valid email address');
       return;
     }
-    
     setSaving(true);
     try {
       // Get the current session for authorization
@@ -125,91 +113,26 @@ const UserManagementPage: React.FC = () => {
       }
 
       // Call the edge function to invite user
-      console.log('Invoking invite-user edge function...');
       const { data, error } = await supabase.functions.invoke('invite-user', {
         body: {
-          email: inviteForm.email.trim(),
-          full_name: inviteForm.full_name.trim(),
+          email: inviteForm.email,
+          full_name: inviteForm.full_name,
           password: inviteForm.password,
           department_id: inviteForm.department_id || null,
-        },
-      });
-
-      console.log('Edge function response:', { data, error });
-
-      if (error) {
-        console.error('Edge function error:', error);
-        throw new Error(error.message || 'Failed to connect to server. Check if edge functions are running.');
-      }
-      if (data?.error) throw new Error(data.error);
-
-      // Store credentials for sharing
-      setCreatedUserCredentials({
-        email: inviteForm.email.trim(),
-        password: inviteForm.password,
-        full_name: inviteForm.full_name.trim(),
-        phone: inviteForm.phone,
-      });
-      
-      toast.success('User created successfully!');
-      setInviteDialogOpen(false);
-      setCredentialsDialogOpen(true);
-      setInviteForm({ email: '', full_name: '', password: '', department_id: '', phone: '' });
-      fetchUsers();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to invite user');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleSendCredentials = async () => {
-    if (!createdUserCredentials) return;
-    
-    if (sendMethod === 'copy') {
-      const text = `Login Credentials for ${company?.name || 'HRMS'}\n\nEmail: ${createdUserCredentials.email}\nPassword: ${createdUserCredentials.password}\n\nLogin URL: ${window.location.origin}/auth`;
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      toast.success('Credentials copied to clipboard!');
-      setTimeout(() => setCopied(false), 2000);
-      return;
-    }
-    
-    if (sendMethod === 'whatsapp' && !createdUserCredentials.phone) {
-      toast.error('Phone number is required for WhatsApp');
-      return;
-    }
-    
-    setSendingCredentials(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('send-credentials', {
-        body: {
-          email: createdUserCredentials.email,
-          full_name: createdUserCredentials.full_name,
-          password: createdUserCredentials.password,
-          phone: createdUserCredentials.phone,
-          method: sendMethod,
-          company_name: company?.name,
-          login_url: `${window.location.origin}/auth`,
         },
       });
 
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      if (sendMethod === 'whatsapp' && data?.whatsappUrl) {
-        window.open(data.whatsappUrl, '_blank');
-        toast.success('WhatsApp opened with credentials message');
-      } else {
-        toast.success('Credentials sent via email!');
-      }
-      
-      setCredentialsDialogOpen(false);
-      setCreatedUserCredentials(null);
+      toast.success('User created successfully. You can now share the credentials.');
+      setInviteDialogOpen(false);
+      setInviteForm({ email: '', full_name: '', password: '', department_id: '' });
+      fetchUsers();
     } catch (error: any) {
-      toast.error(error.message || 'Failed to send credentials');
+      toast.error(error.message || 'Failed to invite user');
     } finally {
-      setSendingCredentials(false);
+      setSaving(false);
     }
   };
 
@@ -276,28 +199,6 @@ const UserManagementPage: React.FC = () => {
     }
   };
 
-  const handleDeleteUser = async () => {
-    if (!userToDelete) return;
-    setDeleting(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('delete-user', {
-        body: { user_id: userToDelete.id },
-      });
-
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-
-      toast.success('User deleted successfully');
-      setDeleteDialogOpen(false);
-      setUserToDelete(null);
-      fetchUsers();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to delete user');
-    } finally {
-      setDeleting(false);
-    }
-  };
-
   const filteredUsers = users.filter(u => 
     u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     u.email.toLowerCase().includes(searchQuery.toLowerCase())
@@ -320,14 +221,14 @@ const UserManagementPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-         <div>
-           <h1 className="text-xl sm:text-2xl font-bold text-foreground">User Management</h1>
-           <p className="text-muted-foreground">Manage team members and their roles</p>
-         </div>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">User Management</h1>
+          <p className="text-muted-foreground">Manage team members and their roles</p>
+        </div>
         <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="w-full sm:w-auto">
+            <Button>
               <UserPlus className="mr-2 h-4 w-4" />
               Invite User
             </Button>
@@ -369,24 +270,9 @@ const UserManagementPage: React.FC = () => {
                   type="password"
                   value={inviteForm.password}
                   onChange={(e) => setInviteForm({ ...inviteForm, password: e.target.value })}
-                  placeholder="At least 12 characters"
+                  placeholder="Minimum 6 characters"
                 />
-                <p className="text-xs text-muted-foreground">
-                  Must include uppercase, lowercase, number, and special character
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number (Optional - for WhatsApp)</Label>
-                <Input
-                  id="phone"
-                  type="tel"
-                  value={inviteForm.phone}
-                  onChange={(e) => setInviteForm({ ...inviteForm, phone: e.target.value })}
-                  placeholder="+91 98765 43210"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Include country code for WhatsApp sharing
-                </p>
+                <p className="text-xs text-muted-foreground">Set a password that you can share with the user</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="department">Department (Optional)</Label>
@@ -415,7 +301,7 @@ const UserManagementPage: React.FC = () => {
                   </Select>
                 )}
               </div>
-              <Button onClick={handleInviteUser} disabled={saving || !inviteForm.email || !inviteForm.password || !inviteForm.full_name} className="w-full">
+              <Button onClick={handleInviteUser} disabled={saving || !inviteForm.email || !inviteForm.password || inviteForm.password.length < 6} className="w-full">
                 {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
                 Create User
               </Button>
@@ -423,99 +309,6 @@ const UserManagementPage: React.FC = () => {
           </DialogContent>
         </Dialog>
       </div>
-
-      {/* Credentials Sharing Dialog */}
-      <Dialog open={credentialsDialogOpen} onOpenChange={setCredentialsDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Send className="h-5 w-5" />
-              Share Credentials
-            </DialogTitle>
-            <DialogDescription>
-              Choose how to share login credentials with {createdUserCredentials?.full_name}
-            </DialogDescription>
-          </DialogHeader>
-          
-          {createdUserCredentials && (
-            <div className="space-y-4 py-4">
-              <div className="p-4 bg-muted rounded-lg space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Email:</span>
-                  <span className="font-medium">{createdUserCredentials.email}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Password:</span>
-                  <span className="font-mono text-sm">{createdUserCredentials.password}</span>
-                </div>
-              </div>
-
-              <RadioGroup value={sendMethod} onValueChange={(v) => setSendMethod(v as 'email' | 'whatsapp' | 'copy')} className="space-y-3">
-                <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer">
-                  <RadioGroupItem value="email" id="email-method" />
-                  <Label htmlFor="email-method" className="flex items-center gap-2 cursor-pointer flex-1">
-                    <Mail className="h-4 w-4 text-blue-600" />
-                    <div>
-                      <p className="font-medium">Send via Email</p>
-                      <p className="text-xs text-muted-foreground">Send credentials to {createdUserCredentials.email}</p>
-                    </div>
-                  </Label>
-                </div>
-                
-                <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer">
-                  <RadioGroupItem value="whatsapp" id="whatsapp-method" />
-                  <Label htmlFor="whatsapp-method" className="flex items-center gap-2 cursor-pointer flex-1">
-                    <MessageCircle className="h-4 w-4 text-green-600" />
-                    <div>
-                      <p className="font-medium">Send via WhatsApp</p>
-                      <p className="text-xs text-muted-foreground">
-                        {createdUserCredentials.phone ? `Send to ${createdUserCredentials.phone}` : 'Phone number not provided'}
-                      </p>
-                    </div>
-                  </Label>
-                </div>
-                
-                <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer">
-                  <RadioGroupItem value="copy" id="copy-method" />
-                  <Label htmlFor="copy-method" className="flex items-center gap-2 cursor-pointer flex-1">
-                    <Copy className="h-4 w-4" />
-                    <div>
-                      <p className="font-medium">Copy to Clipboard</p>
-                      <p className="text-xs text-muted-foreground">Copy credentials and share manually</p>
-                    </div>
-                  </Label>
-                </div>
-              </RadioGroup>
-
-              <div className="flex gap-2">
-                <Button 
-                  onClick={handleSendCredentials} 
-                  disabled={sendingCredentials || (sendMethod === 'whatsapp' && !createdUserCredentials.phone)}
-                  className="flex-1"
-                >
-                  {sendingCredentials ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : sendMethod === 'copy' ? (
-                    copied ? <Check className="mr-2 h-4 w-4" /> : <Copy className="mr-2 h-4 w-4" />
-                  ) : sendMethod === 'whatsapp' ? (
-                    <MessageCircle className="mr-2 h-4 w-4" />
-                  ) : (
-                    <Send className="mr-2 h-4 w-4" />
-                  )}
-                  {sendMethod === 'copy' ? (copied ? 'Copied!' : 'Copy Credentials') : 
-                   sendMethod === 'whatsapp' ? 'Open WhatsApp' : 'Send Email'}
-                </Button>
-                <Button variant="outline" onClick={() => {
-                  setCredentialsDialogOpen(false);
-                  setCreatedUserCredentials(null);
-                }}>
-                  Skip
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
 
       <Card>
         <CardHeader>
@@ -537,14 +330,13 @@ const UserManagementPage: React.FC = () => {
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>User</TableHead>
-                  <TableHead className="hidden sm:table-cell">Roles</TableHead>
+                  <TableHead>Roles</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="hidden sm:table-cell">Joined</TableHead>
+                  <TableHead>Joined</TableHead>
                   <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -564,7 +356,7 @@ const UserManagementPage: React.FC = () => {
                           <p className="text-sm text-muted-foreground">{userProfile.email}</p>
                         </div>
                       </TableCell>
-                      <TableCell className="hidden sm:table-cell">
+                      <TableCell>
                         <div className="flex flex-wrap gap-1">
                           {userProfile.user_roles?.map((ur) => (
                             <Badge key={ur.id} variant="secondary" className="text-xs">
@@ -577,7 +369,7 @@ const UserManagementPage: React.FC = () => {
                         </div>
                       </TableCell>
                       <TableCell>{getStatusBadge(userProfile.status)}</TableCell>
-                      <TableCell className="hidden sm:table-cell text-muted-foreground">
+                      <TableCell className="text-muted-foreground">
                         {new Date(userProfile.created_at).toLocaleDateString()}
                       </TableCell>
                       <TableCell>
@@ -587,7 +379,7 @@ const UserManagementPage: React.FC = () => {
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="bg-popover">
+                          <DropdownMenuContent align="end">
                             <DropdownMenuItem
                               onClick={() => {
                                 setSelectedUser(userProfile);
@@ -607,33 +399,21 @@ const UserManagementPage: React.FC = () => {
                               </DropdownMenuItem>
                             ))}
                             {userProfile.id !== user?.id && (
-                              <>
-                                <DropdownMenuItem
-                                  onClick={() => handleToggleUserStatus(userProfile)}
-                                >
-                                  {userProfile.status === 'active' ? (
-                                    <>
-                                      <UserX className="mr-2 h-4 w-4" />
-                                      Deactivate
-                                    </>
-                                  ) : (
-                                    <>
-                                      <UserCheck className="mr-2 h-4 w-4" />
-                                      Activate
-                                    </>
-                                  )}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => {
-                                    setUserToDelete(userProfile);
-                                    setDeleteDialogOpen(true);
-                                  }}
-                                  className="text-destructive"
-                                >
-                                  <Trash2 className="mr-2 h-4 w-4" />
-                                  Delete User
-                                </DropdownMenuItem>
-                              </>
+                              <DropdownMenuItem
+                                onClick={() => handleToggleUserStatus(userProfile)}
+                              >
+                                {userProfile.status === 'active' ? (
+                                  <>
+                                    <UserX className="mr-2 h-4 w-4" />
+                                    Deactivate
+                                  </>
+                                ) : (
+                                  <>
+                                    <UserCheck className="mr-2 h-4 w-4" />
+                                    Activate
+                                  </>
+                                )}
+                              </DropdownMenuItem>
                             )}
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -643,7 +423,6 @@ const UserManagementPage: React.FC = () => {
                 )}
               </TableBody>
             </Table>
-            </div>
           )}
         </CardContent>
       </Card>
@@ -683,37 +462,6 @@ const UserManagementPage: React.FC = () => {
           </div>
         </DialogContent>
       </Dialog>
-
-      {/* Delete User Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
-              <AlertTriangle className="h-5 w-5" />
-              Delete User Permanently
-            </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
-              <p>
-                Are you sure you want to permanently delete <strong>{userToDelete?.full_name || userToDelete?.email}</strong>?
-              </p>
-              <p className="text-destructive font-medium">
-                This action cannot be undone. All user data, roles, and associated records will be permanently removed.
-              </p>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteUser}
-              disabled={deleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-              Delete User
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 };

@@ -105,9 +105,9 @@ export default function SuperAdminsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-foreground">Super Admins</h1>
+          <h1 className="text-2xl font-bold text-foreground">Super Admins</h1>
           <p className="text-muted-foreground">Manage platform administrators</p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -168,14 +168,13 @@ export default function SuperAdminsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Admin</TableHead>
-                <TableHead className="hidden sm:table-cell">Email</TableHead>
+                <TableHead>Email</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="hidden sm:table-cell">Added</TableHead>
+                <TableHead>Added</TableHead>
                 <TableHead className="w-24">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -197,7 +196,7 @@ export default function SuperAdminsPage() {
                         <span className="font-medium">{admin.full_name || 'Unknown'}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="hidden sm:table-cell">{admin.email}</TableCell>
+                    <TableCell>{admin.email}</TableCell>
                     <TableCell>
                       <Badge 
                         variant={admin.is_active ? 'default' : 'secondary'}
@@ -207,7 +206,7 @@ export default function SuperAdminsPage() {
                         {admin.is_active ? 'Active' : 'Inactive'}
                       </Badge>
                     </TableCell>
-                    <TableCell className="hidden sm:table-cell text-muted-foreground">
+                    <TableCell className="text-muted-foreground">
                       {new Date(admin.created_at).toLocaleDateString()}
                     </TableCell>
                     <TableCell>
@@ -225,7 +224,6 @@ export default function SuperAdminsPage() {
               )}
             </TableBody>
           </Table>
-          </div>
         </CardContent>
       </Card>
     </div>

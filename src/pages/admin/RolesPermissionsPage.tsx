@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -13,9 +13,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Textarea } from '@/components/ui/textarea';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { toast } from 'sonner';
-import { Plus, Shield, Loader2, Save, Trash2, Edit2, Check, X } from 'lucide-react';
+import { Plus, Shield, Loader2, Save, Trash2, Edit2 } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
-import { roleSchema, getValidationError } from '@/lib/validations';
 
 type Role = Tables<'roles'>;
 type Permission = Tables<'permissions'>;
@@ -40,7 +39,6 @@ const RolesPermissionsPage: React.FC = () => {
   });
   const [selectedPermissions, setSelectedPermissions] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
-  const [openAccordions, setOpenAccordions] = useState<string[]>([]);
 
   const fetchRoles = async () => {
     if (!company?.id) return;
@@ -72,7 +70,7 @@ const RolesPermissionsPage: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('permissions')
-        .select('id, code, name, description, category, module, is_sensitive, created_at')
+        .select('*')
         .order('module')
         .order('category')
         .order('name');
@@ -91,36 +89,25 @@ const RolesPermissionsPage: React.FC = () => {
     }
   }, [company?.id]);
 
-  const groupedPermissions = useMemo(() => {
-    return permissions.reduce((acc, perm) => {
-      const key = perm.module;
-      if (!acc[key]) {
-        acc[key] = [];
-      }
-      acc[key].push(perm);
-      return acc;
-    }, {} as Record<string, Permission[]>);
-  }, [permissions]);
+  const groupedPermissions = permissions.reduce((acc, perm) => {
+    const key = perm.module;
+    if (!acc[key]) {
+      acc[key] = [];
+    }
+    acc[key].push(perm);
+    return acc;
+  }, {} as Record<string, Permission[]>);
 
   const handleCreateRole = async () => {
     if (!company?.id || !user?.id) return;
-    
-    // Validate form with Zod schema
-    const validationResult = roleSchema.safeParse(roleForm);
-    const validationError = getValidationError(validationResult);
-    if (validationError) {
-      toast.error(validationError);
-      return;
-    }
-    
     setSaving(true);
     try {
       // Create role
       const { data: newRole, error: roleError } = await supabase
         .from('roles')
         .insert({
-          name: roleForm.name.trim(),
-          description: roleForm.description.trim() || null,
+          name: roleForm.name,
+          description: roleForm.description,
           company_id: company.id,
           created_by: user.id,
         })
@@ -165,54 +152,18 @@ const RolesPermissionsPage: React.FC = () => {
       description: role.description || '',
     });
     setSelectedPermissions(new Set(role.role_permissions.map(rp => rp.permission_id)));
-    // Auto-expand modules that have permissions selected
-    const modulesWithPermissions = role.role_permissions.map(rp => rp.permission?.module).filter(Boolean) as string[];
-    setOpenAccordions([...new Set(modulesWithPermissions)]);
-  };
-
-  const handleCloseDialog = () => {
-    setEditingRole(null);
-    setRoleForm({ name: '', description: '' });
-    setSelectedPermissions(new Set());
-    setOpenAccordions([]);
-  };
-
-  const handleCloseCreateDialog = (open: boolean) => {
-    setCreateDialogOpen(open);
-    if (!open) {
-      setRoleForm({ name: '', description: '' });
-      setSelectedPermissions(new Set());
-      setOpenAccordions([]);
-    }
-  };
-
-  const expandAllAccordions = () => {
-    setOpenAccordions(Object.keys(groupedPermissions));
-  };
-
-  const collapseAllAccordions = () => {
-    setOpenAccordions([]);
   };
 
   const handleUpdateRole = async () => {
     if (!editingRole || !user?.id) return;
-    
-    // Validate form with Zod schema
-    const validationResult = roleSchema.safeParse(roleForm);
-    const validationError = getValidationError(validationResult);
-    if (validationError) {
-      toast.error(validationError);
-      return;
-    }
-    
     setSaving(true);
     try {
       // Update role details
       const { error: roleError } = await supabase
         .from('roles')
         .update({
-          name: roleForm.name.trim(),
-          description: roleForm.description.trim() || null,
+          name: roleForm.name,
+          description: roleForm.description,
         })
         .eq('id', editingRole.id);
 
@@ -281,115 +232,59 @@ const RolesPermissionsPage: React.FC = () => {
     }
   };
 
-  const togglePermission = useCallback((permId: string) => {
-    setSelectedPermissions(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(permId)) {
-        newSet.delete(permId);
-      } else {
-        newSet.add(permId);
-      }
-      return newSet;
-    });
-  }, []);
+  const togglePermission = (permId: string) => {
+    const newSet = new Set(selectedPermissions);
+    if (newSet.has(permId)) {
+      newSet.delete(permId);
+    } else {
+      newSet.add(permId);
+    }
+    setSelectedPermissions(newSet);
+  };
 
-  const toggleAllModulePermissions = useCallback((module: string, perms: Permission[]) => {
-    setSelectedPermissions(prev => {
-      const newSet = new Set(prev);
-      const allSelected = perms.every(p => newSet.has(p.id));
-      
-      if (allSelected) {
-        // Deselect all
-        perms.forEach(p => newSet.delete(p.id));
-      } else {
-        // Select all
-        perms.forEach(p => newSet.add(p.id));
-      }
-      return newSet;
-    });
-  }, []);
-
-  const PermissionSelector = React.memo(() => (
-    <Accordion 
-      type="multiple" 
-      value={openAccordions}
-      onValueChange={setOpenAccordions}
-      className="w-full"
-    >
-      {Object.entries(groupedPermissions).map(([module, perms]) => {
-        const selectedCount = perms.filter(p => selectedPermissions.has(p.id)).length;
-        const allSelected = selectedCount === perms.length;
-        const someSelected = selectedCount > 0 && !allSelected;
-        
-        return (
-          <AccordionItem key={module} value={module}>
-            <AccordionTrigger className="hover:no-underline">
-              <div className="flex items-center gap-2 flex-1">
-                <Badge variant="outline" className="capitalize">
-                  {module.replace(/_/g, ' ')}
-                </Badge>
-                <span className="text-sm text-muted-foreground">
-                  ({selectedCount}/{perms.length})
-                </span>
-                {allSelected && (
-                  <Badge variant="default" className="text-xs ml-auto mr-2">
-                    <Check className="h-3 w-3" />
-                  </Badge>
-                )}
-              </div>
-            </AccordionTrigger>
-            <AccordionContent>
-              <div className="space-y-2 pl-2">
-                {/* Select All for this module */}
-                <div className="flex items-center gap-3 py-2 border-b mb-2">
+  const PermissionSelector = () => (
+    <Accordion type="multiple" className="w-full">
+      {Object.entries(groupedPermissions).map(([module, perms]) => (
+        <AccordionItem key={module} value={module}>
+          <AccordionTrigger className="hover:no-underline">
+            <div className="flex items-center gap-2">
+              <Badge variant="outline">{module.replace('_', ' ')}</Badge>
+              <span className="text-sm text-muted-foreground">
+                ({perms.filter(p => selectedPermissions.has(p.id)).length}/{perms.length})
+              </span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="space-y-2 pl-2">
+              {perms.map((perm) => (
+                <div key={perm.id} className="flex items-start gap-3 py-1">
                   <Checkbox
-                    id={`select-all-${module}`}
-                    checked={allSelected}
-                    ref={(el) => {
-                      if (el && someSelected) {
-                        el.dataset.state = 'indeterminate';
-                      }
-                    }}
-                    onCheckedChange={() => toggleAllModulePermissions(module, perms)}
+                    id={perm.id}
+                    checked={selectedPermissions.has(perm.id)}
+                    onCheckedChange={() => togglePermission(perm.id)}
                   />
-                  <label
-                    htmlFor={`select-all-${module}`}
-                    className="text-sm font-medium cursor-pointer text-primary"
-                  >
-                    {allSelected ? 'Deselect All' : 'Select All'}
-                  </label>
-                </div>
-                
-                {perms.map((perm) => (
-                  <div key={perm.id} className="flex items-start gap-3 py-1">
-                    <Checkbox
-                      id={perm.id}
-                      checked={selectedPermissions.has(perm.id)}
-                      onCheckedChange={() => togglePermission(perm.id)}
-                    />
-                    <div className="flex-1">
-                      <label
-                        htmlFor={perm.id}
-                        className="text-sm font-medium cursor-pointer"
-                      >
-                        {perm.name}
-                      </label>
-                      {perm.description && (
-                        <p className="text-xs text-muted-foreground">{perm.description}</p>
-                      )}
-                      {perm.is_sensitive && (
-                        <Badge variant="destructive" className="text-xs mt-1">Sensitive</Badge>
-                      )}
-                    </div>
+                  <div className="flex-1">
+                    <label
+                      htmlFor={perm.id}
+                      className="text-sm font-medium cursor-pointer"
+                    >
+                      {perm.name}
+                    </label>
+                    {perm.description && (
+                      <p className="text-xs text-muted-foreground">{perm.description}</p>
+                    )}
+                    {perm.is_sensitive && (
+                      <Badge variant="destructive" className="text-xs mt-1">Sensitive</Badge>
+                    )}
                   </div>
-                ))}
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-        );
-      })}
+                </div>
+              ))}
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      ))}
     </Accordion>
-  ));
+  );
 
   if (isLoading) {
     return (
@@ -401,19 +296,19 @@ const RolesPermissionsPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-foreground">Roles & Permissions</h1>
+          <h1 className="text-2xl font-bold text-foreground">Roles & Permissions</h1>
           <p className="text-muted-foreground">Define roles and assign permissions</p>
         </div>
-        <Dialog open={createDialogOpen} onOpenChange={handleCloseCreateDialog}>
+        <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="mr-2 h-4 w-4" />
               Create Role
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-full sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Create New Role</DialogTitle>
               <DialogDescription>
@@ -441,17 +336,7 @@ const RolesPermissionsPage: React.FC = () => {
                 />
               </div>
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Permissions</Label>
-                  <div className="flex gap-2">
-                    <Button type="button" variant="ghost" size="sm" onClick={expandAllAccordions}>
-                      Expand All
-                    </Button>
-                    <Button type="button" variant="ghost" size="sm" onClick={collapseAllAccordions}>
-                      Collapse All
-                    </Button>
-                  </div>
-                </div>
+                <Label>Permissions</Label>
                 <PermissionSelector />
               </div>
               <Button onClick={handleCreateRole} disabled={saving || !roleForm.name} className="w-full">
@@ -464,8 +349,8 @@ const RolesPermissionsPage: React.FC = () => {
       </div>
 
       {/* Edit Role Dialog */}
-      <Dialog open={!!editingRole} onOpenChange={(open) => !open && handleCloseDialog()}>
-        <DialogContent className="max-w-full sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+      <Dialog open={!!editingRole} onOpenChange={(open) => !open && setEditingRole(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Role</DialogTitle>
             <DialogDescription>
@@ -492,17 +377,7 @@ const RolesPermissionsPage: React.FC = () => {
               />
             </div>
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>Permissions</Label>
-                <div className="flex gap-2">
-                  <Button type="button" variant="ghost" size="sm" onClick={expandAllAccordions}>
-                    Expand All
-                  </Button>
-                  <Button type="button" variant="ghost" size="sm" onClick={collapseAllAccordions}>
-                    Collapse All
-                  </Button>
-                </div>
-              </div>
+              <Label>Permissions</Label>
               <PermissionSelector />
             </div>
             <Button onClick={handleUpdateRole} disabled={saving || !roleForm.name} className="w-full">

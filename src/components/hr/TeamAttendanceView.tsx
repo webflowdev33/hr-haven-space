@@ -10,24 +10,19 @@ import { toast } from 'sonner';
 import { Loader2, Users, Search } from 'lucide-react';
 import { format } from 'date-fns';
 
-// Uses attendance_daily view
 interface AttendanceRecord {
   id: string;
-  profile_id: string;
   date: string;
   check_in: string | null;
   check_out: string | null;
   work_hours: number | null;
   status: string;
-  notes: string | null;
-  employee_name: string | null;
-  employee_email: string;
-  company_id: string;
-  department_id: string | null;
-  department_name: string | null;
-  designation: string | null;
-  is_late: boolean;
-  overtime_hours: number;
+  profile: {
+    id: string;
+    full_name: string | null;
+    email: string;
+    avatar_url: string | null;
+  };
 }
 
 const TeamAttendanceView: React.FC = () => {
@@ -41,16 +36,17 @@ const TeamAttendanceView: React.FC = () => {
     if (!company?.id) return;
     setIsLoading(true);
     try {
-      // Use attendance_daily view - includes employee info and calculations
       const { data, error } = await supabase
-        .from('attendance_daily')
-        .select('*')
+        .from('attendance')
+        .select(`
+          *,
+          profile:profiles!attendance_profile_id_fkey(id, full_name, email, avatar_url)
+        `)
         .eq('date', selectedDate)
-        .eq('company_id', company.id)
         .order('check_in', { ascending: true });
 
       if (error) throw error;
-      setAttendance((data as AttendanceRecord[]) || []);
+      setAttendance((data as unknown as AttendanceRecord[]) || []);
     } catch (error: any) {
       toast.error(error.message || 'Failed to fetch team attendance');
     } finally {
@@ -90,8 +86,8 @@ const TeamAttendanceView: React.FC = () => {
   };
 
   const filteredAttendance = attendance.filter(record =>
-    record.employee_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    record.employee_email?.toLowerCase().includes(searchQuery.toLowerCase())
+    record.profile?.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    record.profile?.email?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const stats = {
@@ -177,14 +173,13 @@ const TeamAttendanceView: React.FC = () => {
               <p>No attendance records for {format(new Date(selectedDate), 'MMMM d, yyyy')}</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Employee</TableHead>
                   <TableHead>Check In</TableHead>
-                  <TableHead className="hidden sm:table-cell">Check Out</TableHead>
-                  <TableHead className="hidden sm:table-cell">Work Hours</TableHead>
+                  <TableHead>Check Out</TableHead>
+                  <TableHead>Work Hours</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
               </TableHeader>
@@ -193,36 +188,26 @@ const TeamAttendanceView: React.FC = () => {
                   <TableRow key={record.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8 hidden sm:flex">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={record.profile?.avatar_url || undefined} />
                           <AvatarFallback className="text-xs">
-                            {getInitials(record.employee_name)}
+                            {getInitials(record.profile?.full_name)}
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <p className="font-medium">{record.employee_name || 'Unknown'}</p>
-                          <p className="text-sm text-muted-foreground hidden sm:block">{record.employee_email}</p>
+                          <p className="font-medium">{record.profile?.full_name || 'Unknown'}</p>
+                          <p className="text-sm text-muted-foreground">{record.profile?.email}</p>
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {formatTime(record.check_in)}
-                        {record.is_late && <Badge variant="outline" className="text-xs text-amber-600">Late</Badge>}
-                      </div>
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell">{formatTime(record.check_out)}</TableCell>
-                    <TableCell className="hidden sm:table-cell">
-                      <div className="flex items-center gap-2">
-                        {record.work_hours ? `${record.work_hours}h` : '-'}
-                        {record.overtime_hours > 0 && <Badge variant="outline" className="text-xs text-green-600">+{record.overtime_hours}h OT</Badge>}
-                      </div>
-                    </TableCell>
+                    <TableCell>{formatTime(record.check_in)}</TableCell>
+                    <TableCell>{formatTime(record.check_out)}</TableCell>
+                    <TableCell>{record.work_hours ? `${record.work_hours}h` : '-'}</TableCell>
                     <TableCell>{getStatusBadge(record.status)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-            </div>
           )}
         </CardContent>
       </Card>

@@ -46,63 +46,64 @@ const AttendanceReports: React.FC = () => {
       const monthStart = startOfMonth(new Date(parseInt(year), parseInt(month) - 1));
       const monthEnd = endOfMonth(monthStart);
 
+      // Get all employees
+      let employeesQuery = supabase
+        .from('profiles')
+        .select('id, full_name, department_id, department:departments!fk_profiles_department(name)')
+        .eq('company_id', company.id)
+        .eq('status', 'active');
+
+      if (selectedDepartment !== 'all') {
+        employeesQuery = employeesQuery.eq('department_id', selectedDepartment);
+      }
+
+      const { data: employees, error: empError } = await employeesQuery;
+      if (empError) throw empError;
+
+      // Get attendance records for the month
+      const { data: attendance, error: attError } = await supabase
+        .from('attendance')
+        .select('*')
+        .gte('date', format(monthStart, 'yyyy-MM-dd'))
+        .lte('date', format(monthEnd, 'yyyy-MM-dd'));
+
+      if (attError) throw attError;
+
       // Calculate working days in month (excluding weekends)
       const workingDays = eachDayOfInterval({ start: monthStart, end: monthEnd })
         .filter(d => !isWeekend(d)).length;
 
-      // Use attendance_monthly_summary view for aggregated data
-      let summaryQuery = supabase
-        .from('attendance_monthly_summary')
-        .select('*')
-        .eq('company_id', company.id)
-        .eq('year', parseInt(year))
-        .eq('month', parseInt(month));
-
-      if (selectedDepartment !== 'all') {
-        summaryQuery = summaryQuery.eq('department_id', selectedDepartment);
-      }
-
-      const { data: monthlySummary, error: summaryError } = await summaryQuery;
-      if (summaryError) throw summaryError;
-
-      // Get late arrivals from attendance_daily view
-      let dailyQuery = supabase
-        .from('attendance_daily')
-        .select('profile_id, is_late')
-        .eq('company_id', company.id)
-        .gte('date', format(monthStart, 'yyyy-MM-dd'))
-        .lte('date', format(monthEnd, 'yyyy-MM-dd'))
-        .eq('is_late', true);
-
-      if (selectedDepartment !== 'all') {
-        dailyQuery = dailyQuery.eq('department_id', selectedDepartment);
-      }
-
-      const { data: lateData } = await dailyQuery;
-
-      // Calculate late arrivals per employee
-      const lateByEmployee = (lateData || []).reduce((acc, record) => {
-        acc[record.profile_id] = (acc[record.profile_id] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
-
       // Build summary for each employee
-      const summaries: AttendanceSummary[] = (monthlySummary || []).map(row => {
-        const present = Number(row.days_present) || 0;
-        const halfDay = Number(row.days_half) || 0;
-        const leave = Number(row.days_on_leave) || 0;
-        const absent = Math.max(0, workingDays - present - halfDay - leave);
+      const summaries: AttendanceSummary[] = (employees || []).map(emp => {
+        const empAttendance = attendance?.filter(a => a.profile_id === emp.id) || [];
+        
+        const present = empAttendance.filter(a => a.status === 'present').length;
+        const halfDay = empAttendance.filter(a => a.status === 'half-day').length;
+        const leave = empAttendance.filter(a => a.status === 'leave').length;
+        const absent = workingDays - present - halfDay - leave;
+        
+        const workHours = empAttendance.reduce((sum, a) => sum + (a.work_hours || 0), 0);
+        const avgHours = present > 0 ? workHours / present : 0;
+        
+        // Late arrivals (check-in after 9:30 AM)
+        const lateCount = empAttendance.filter(a => {
+          if (!a.check_in) return false;
+          const checkIn = new Date(a.check_in);
+          return checkIn.getHours() > 9 || (checkIn.getHours() === 9 && checkIn.getMinutes() > 30);
+        }).length;
+
+        const dept = Array.isArray(emp.department) ? emp.department[0] : emp.department;
 
         return {
-          profile_id: row.profile_id,
-          full_name: row.employee_name || 'Unknown',
-          department_name: row.department_name || null,
+          profile_id: emp.id,
+          full_name: emp.full_name || 'Unknown',
+          department_name: dept?.name || null,
           total_present: present,
-          total_absent: absent,
+          total_absent: Math.max(0, absent),
           total_half_day: halfDay,
           total_leave: leave,
-          avg_work_hours: Math.round(Number(row.avg_work_hours) * 10) / 10,
-          late_arrivals: lateByEmployee[row.profile_id] || 0,
+          avg_work_hours: Math.round(avgHours * 10) / 10,
+          late_arrivals: lateCount,
         };
       });
 
@@ -181,11 +182,11 @@ const AttendanceReports: React.FC = () => {
       {/* Filters */}
       <Card>
         <CardContent className="py-4">
-          <div className="flex flex-col sm:flex-row flex-wrap gap-4 items-start sm:items-end">
-            <div className="space-y-2 w-full sm:w-auto">
+          <div className="flex flex-wrap gap-4 items-end">
+            <div className="space-y-2">
               <Label>Month</Label>
               <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectTrigger className="w-[180px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -195,10 +196,10 @@ const AttendanceReports: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2 w-full sm:w-auto">
+            <div className="space-y-2">
               <Label>Department</Label>
               <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-                <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="All Departments" />
                 </SelectTrigger>
                 <SelectContent>
@@ -209,7 +210,7 @@ const AttendanceReports: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
-            <Button variant="outline" onClick={exportToCSV} disabled={summaryData.length === 0} className="w-full sm:w-auto">
+            <Button variant="outline" onClick={exportToCSV} disabled={summaryData.length === 0}>
               <Download className="mr-2 h-4 w-4" />
               Export CSV
             </Button>
@@ -295,25 +296,24 @@ const AttendanceReports: React.FC = () => {
               <p>No employee data found</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Employee</TableHead>
-                  <TableHead className="hidden sm:table-cell">Department</TableHead>
+                  <TableHead>Department</TableHead>
                   <TableHead className="text-center">Present</TableHead>
                   <TableHead className="text-center">Absent</TableHead>
-                  <TableHead className="text-center hidden sm:table-cell">Half Day</TableHead>
-                  <TableHead className="text-center hidden sm:table-cell">Leave</TableHead>
-                  <TableHead className="text-center hidden md:table-cell">Avg Hours</TableHead>
-                  <TableHead className="text-center hidden md:table-cell">Late</TableHead>
+                  <TableHead className="text-center">Half Day</TableHead>
+                  <TableHead className="text-center">Leave</TableHead>
+                  <TableHead className="text-center">Avg Hours</TableHead>
+                  <TableHead className="text-center">Late</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {summaryData.map((row) => (
                   <TableRow key={row.profile_id}>
                     <TableCell className="font-medium">{row.full_name}</TableCell>
-                    <TableCell className="hidden sm:table-cell">{row.department_name || '-'}</TableCell>
+                    <TableCell>{row.department_name || '-'}</TableCell>
                     <TableCell className="text-center">
                       <Badge className="bg-green-500/10 text-green-600 border-green-200">{row.total_present}</Badge>
                     </TableCell>
@@ -324,22 +324,22 @@ const AttendanceReports: React.FC = () => {
                         <span className="text-muted-foreground">0</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-center hidden sm:table-cell">
+                    <TableCell className="text-center">
                       {row.total_half_day > 0 ? (
                         <Badge className="bg-amber-500/10 text-amber-600">{row.total_half_day}</Badge>
                       ) : (
                         <span className="text-muted-foreground">0</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-center hidden sm:table-cell">
+                    <TableCell className="text-center">
                       {row.total_leave > 0 ? (
                         <Badge className="bg-blue-500/10 text-blue-600">{row.total_leave}</Badge>
                       ) : (
                         <span className="text-muted-foreground">0</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-center hidden md:table-cell">{row.avg_work_hours}h</TableCell>
-                    <TableCell className="text-center hidden md:table-cell">
+                    <TableCell className="text-center">{row.avg_work_hours}h</TableCell>
+                    <TableCell className="text-center">
                       {row.late_arrivals > 0 ? (
                         <Badge variant="outline" className="text-amber-600">{row.late_arrivals}</Badge>
                       ) : (
@@ -350,7 +350,6 @@ const AttendanceReports: React.FC = () => {
                 ))}
               </TableBody>
             </Table>
-            </div>
           )}
         </CardContent>
       </Card>

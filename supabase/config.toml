@@ -2,6 +2,3 @@ project_id = "bmyoxuiejkvjieoibeys"
 
 [functions.invite-user]
 verify_jwt = false
-
-[functions.attendance-punch]
-verify_jwt = false

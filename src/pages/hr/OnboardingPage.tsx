@@ -14,9 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
-import { Plus, Loader2, CheckCircle2, Circle, ListChecks, Users, Trash2, MoreVertical, Check } from 'lucide-react';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Plus, Loader2, CheckCircle2, Circle, ListChecks, Users, Trash2 } from 'lucide-react';
 import AssignOnboardingDialog from '@/components/hr/AssignOnboardingDialog';
 
 interface OnboardingTemplate {
@@ -36,34 +34,23 @@ interface OnboardingTemplateItem {
   is_required: boolean;
 }
 
-// Using onboarding_progress view from database
 interface EmployeeOnboarding {
   id: string;
   profile_id: string;
   template_id: string;
   status: string;
   started_at: string;
-  completed_at: string | null;
-  employee_name: string | null;
-  employee_email: string | null;
-  template_name: string | null;
-  template_description: string | null;
-  total_items: number | null;
-  completed_items: number | null;
-  progress_percentage: number | null;
+  profile?: { full_name: string; email: string };
+  template?: { id?: string; name: string; description?: string | null; is_active?: boolean };
+  items?: EmployeeOnboardingItem[];
 }
 
-// For my onboarding items display - matches onboarding_item_details view
-interface OnboardingItemDisplay {
+interface EmployeeOnboardingItem {
   id: string;
-  onboarding_id: string | null;
-  is_completed: boolean | null;
+  template_item_id: string;
+  is_completed: boolean;
   completed_at: string | null;
-  title: string | null;
-  description: string | null;
-  category: string | null;
-  sort_order: number | null;
-  is_required: boolean | null;
+  template_item?: OnboardingTemplateItem;
 }
 
 const OnboardingPage: React.FC = () => {
@@ -75,7 +62,6 @@ const OnboardingPage: React.FC = () => {
   const canManageOnboarding = isCompanyAdmin() || hasRole('HR') || hasRole('Hr manager') || hasPermission('hr.manage_department');
   const [templates, setTemplates] = useState<OnboardingTemplate[]>([]);
   const [employeeOnboardings, setEmployeeOnboardings] = useState<EmployeeOnboarding[]>([]);
-  const [myOnboardingItems, setMyOnboardingItems] = useState<OnboardingItemDisplay[]>([]);
   const [myOnboarding, setMyOnboarding] = useState<EmployeeOnboarding | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
@@ -86,9 +72,7 @@ const OnboardingPage: React.FC = () => {
   });
   const [newItem, setNewItem] = useState({ title: '', description: '', category: '' });
   const [selectedTemplate, setSelectedTemplate] = useState<OnboardingTemplate | null>(null);
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [templateToDelete, setTemplateToDelete] = useState<string | null>(null);
-  const [onboardingToRemove, setOnboardingToRemove] = useState<string | null>(null);
+
   const fetchTemplates = async () => {
     if (!company?.id) return;
     
@@ -111,10 +95,14 @@ const OnboardingPage: React.FC = () => {
   const fetchEmployeeOnboardings = async () => {
     if (!company?.id || !canManageOnboarding) return;
     
-    // Use the onboarding_progress view for pre-calculated data
     const { data, error } = await supabase
-      .from('onboarding_progress')
-      .select('*')
+      .from('employee_onboarding')
+      .select(`
+        *,
+        profile:profiles(full_name, email),
+        template:onboarding_templates(name),
+        items:employee_onboarding_items(*, template_item:onboarding_template_items(*))
+      `)
       .order('started_at', { ascending: false });
     
     if (error) {
@@ -127,36 +115,21 @@ const OnboardingPage: React.FC = () => {
   const fetchMyOnboarding = async () => {
     if (!user?.id) return;
     
-    // Use the onboarding_progress view for my onboarding
-    const { data: onboardingData, error: onboardingError } = await supabase
-      .from('onboarding_progress')
-      .select('*')
+    const { data, error } = await supabase
+      .from('employee_onboarding')
+      .select(`
+        *,
+        template:onboarding_templates(name, description),
+        items:employee_onboarding_items(*, template_item:onboarding_template_items(*))
+      `)
       .eq('profile_id', user.id)
       .eq('status', 'in_progress')
       .maybeSingle();
     
-    if (onboardingError) {
-      console.error('Error fetching my onboarding:', onboardingError);
-      return;
-    }
-    
-    setMyOnboarding(onboardingData);
-    
-    // Fetch onboarding items using the onboarding_item_details view if we have an onboarding
-    if (onboardingData?.id) {
-      const { data: itemsData, error: itemsError } = await supabase
-        .from('onboarding_item_details')
-        .select('*')
-        .eq('onboarding_id', onboardingData.id)
-        .order('sort_order', { ascending: true });
-      
-      if (itemsError) {
-        console.error('Error fetching onboarding items:', itemsError);
-      } else {
-        setMyOnboardingItems(itemsData || []);
-      }
+    if (error) {
+      console.error('Error fetching my onboarding:', error);
     } else {
-      setMyOnboardingItems([]);
+      setMyOnboarding(data);
     }
   };
 
@@ -239,75 +212,6 @@ const OnboardingPage: React.FC = () => {
     }
   };
 
-  const handleDeleteTemplate = async (templateId: string) => {
-    try {
-      // First delete template items
-      const { error: itemsError } = await supabase
-        .from('onboarding_template_items')
-        .delete()
-        .eq('template_id', templateId);
-
-      if (itemsError) throw itemsError;
-
-      // Then delete the template
-      const { error } = await supabase
-        .from('onboarding_templates')
-        .delete()
-        .eq('id', templateId);
-
-      if (error) throw error;
-      toast.success('Template deleted');
-      setSelectedTemplate(null);
-      fetchTemplates();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to delete template');
-    }
-  };
-
-  const handleCompleteOnboarding = async (onboardingId: string) => {
-    try {
-      const { error } = await supabase
-        .from('employee_onboarding')
-        .update({
-          status: 'completed',
-          completed_at: new Date().toISOString(),
-        })
-        .eq('id', onboardingId);
-
-      if (error) throw error;
-      toast.success('Onboarding marked as complete');
-      fetchEmployeeOnboardings();
-      fetchMyOnboarding();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to complete onboarding');
-    }
-  };
-
-  const handleRemoveOnboarding = async (onboardingId: string) => {
-    try {
-      // First delete onboarding items
-      const { error: itemsError } = await supabase
-        .from('employee_onboarding_items')
-        .delete()
-        .eq('onboarding_id', onboardingId);
-
-      if (itemsError) throw itemsError;
-
-      // Then delete the onboarding
-      const { error } = await supabase
-        .from('employee_onboarding')
-        .delete()
-        .eq('id', onboardingId);
-
-      if (error) throw error;
-      toast.success('Onboarding removed');
-      fetchEmployeeOnboardings();
-      fetchMyOnboarding();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to remove onboarding');
-    }
-  };
-
   const handleToggleOnboardingItem = async (itemId: string, completed: boolean) => {
     try {
       const { error } = await supabase
@@ -326,9 +230,10 @@ const OnboardingPage: React.FC = () => {
     }
   };
 
-  // Progress is now pre-calculated in the view
-  const getOnboardingProgress = (onboarding: EmployeeOnboarding | null) => {
-    return onboarding?.progress_percentage ?? 0;
+  const getOnboardingProgress = (items: EmployeeOnboardingItem[] | undefined) => {
+    if (!items || items.length === 0) return 0;
+    const completed = items.filter(i => i.is_completed).length;
+    return Math.round((completed / items.length) * 100);
   };
 
   if (isLoading) {
@@ -341,13 +246,13 @@ const OnboardingPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-foreground">Onboarding</h1>
+          <h1 className="text-2xl font-bold text-foreground">Onboarding</h1>
           <p className="text-muted-foreground">Manage employee onboarding checklists</p>
         </div>
         {canManageOnboarding && (
-          <div className="flex flex-wrap gap-2">
+          <>
             <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
               <DialogTrigger asChild>
                 <Button>
@@ -355,7 +260,7 @@ const OnboardingPage: React.FC = () => {
                   New Template
                 </Button>
               </DialogTrigger>
-            <DialogContent className="max-w-full sm:max-w-lg max-h-[85vh] overflow-y-auto">
+            <DialogContent>
               <DialogHeader>
                 <DialogTitle>Create Onboarding Template</DialogTitle>
               </DialogHeader>
@@ -384,7 +289,7 @@ const OnboardingPage: React.FC = () => {
             </DialogContent>
           </Dialog>
           <AssignOnboardingDialog templates={templates} onAssigned={() => { fetchEmployeeOnboardings(); fetchMyOnboarding(); }} />
-          </div>
+          </>
         )}
       </div>
 
@@ -396,29 +301,29 @@ const OnboardingPage: React.FC = () => {
               <ListChecks className="h-5 w-5" />
               Your Onboarding Progress
             </CardTitle>
-            <CardDescription>{myOnboarding.template_name}</CardDescription>
+            <CardDescription>{myOnboarding.template?.name}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="mb-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-muted-foreground">Progress</span>
-                <span className="text-sm font-medium">{getOnboardingProgress(myOnboarding)}%</span>
+                <span className="text-sm font-medium">{getOnboardingProgress(myOnboarding.items)}%</span>
               </div>
-              <Progress value={getOnboardingProgress(myOnboarding)} />
+              <Progress value={getOnboardingProgress(myOnboarding.items)} />
             </div>
             <div className="space-y-3">
-              {myOnboardingItems.map((item) => (
+              {myOnboarding.items?.sort((a, b) => (a.template_item?.sort_order || 0) - (b.template_item?.sort_order || 0)).map((item) => (
                 <div key={item.id} className="flex items-start gap-3 p-3 bg-background rounded-lg">
                   <Checkbox
-                    checked={item.is_completed ?? false}
+                    checked={item.is_completed}
                     onCheckedChange={(checked) => handleToggleOnboardingItem(item.id, !!checked)}
                   />
                   <div className="flex-1">
                     <p className={`font-medium ${item.is_completed ? 'line-through text-muted-foreground' : ''}`}>
-                      {item.title}
+                      {item.template_item?.title}
                     </p>
-                    {item.description && (
-                      <p className="text-sm text-muted-foreground">{item.description}</p>
+                    {item.template_item?.description && (
+                      <p className="text-sm text-muted-foreground">{item.template_item.description}</p>
                     )}
                   </div>
                   {item.is_completed ? (
@@ -458,30 +363,9 @@ const OnboardingPage: React.FC = () => {
                     <CardHeader>
                       <div className="flex items-center justify-between">
                         <CardTitle className="text-lg">{template.name}</CardTitle>
-                        <div className="flex items-center gap-2">
-                          <Badge variant={template.is_active ? 'default' : 'secondary'}>
-                            {template.is_active ? 'Active' : 'Inactive'}
-                          </Badge>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                onClick={() => {
-                                  setTemplateToDelete(template.id);
-                                  setDeleteConfirmOpen(true);
-                                }}
-                                className="text-destructive"
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete Template
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
+                        <Badge variant={template.is_active ? 'default' : 'secondary'}>
+                          {template.is_active ? 'Active' : 'Inactive'}
+                        </Badge>
                       </div>
                       {template.description && (
                         <CardDescription>{template.description}</CardDescription>
@@ -559,42 +443,17 @@ const OnboardingPage: React.FC = () => {
                 ) : (
                   <div className="space-y-4">
                     {employeeOnboardings.map((onboarding) => (
-                      <div key={onboarding.id} className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-4 border rounded-lg">
+                      <div key={onboarding.id} className="flex items-center gap-4 p-4 border rounded-lg">
                         <div className="flex-1">
-                          <p className="font-medium">{onboarding.employee_name}</p>
-                          <p className="text-sm text-muted-foreground">{onboarding.template_name}</p>
+                          <p className="font-medium">{onboarding.profile?.full_name}</p>
+                          <p className="text-sm text-muted-foreground">{onboarding.template?.name}</p>
                         </div>
                         <div className="w-32">
-                          <Progress value={getOnboardingProgress(onboarding)} />
+                          <Progress value={getOnboardingProgress(onboarding.items)} />
                         </div>
                         <Badge variant={onboarding.status === 'completed' ? 'default' : 'secondary'}>
-                          {onboarding.status === 'completed' ? 'Completed' : `${getOnboardingProgress(onboarding)}%`}
+                          {getOnboardingProgress(onboarding.items)}%
                         </Badge>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            {onboarding.status !== 'completed' && (
-                              <DropdownMenuItem onClick={() => handleCompleteOnboarding(onboarding.id)}>
-                                <Check className="mr-2 h-4 w-4" />
-                                Mark as Completed
-                              </DropdownMenuItem>
-                            )}
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setOnboardingToRemove(onboarding.id);
-                                setDeleteConfirmOpen(true);
-                              }}
-                              className="text-destructive"
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Remove
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
                       </div>
                     ))}
                   </div>
@@ -604,43 +463,6 @@ const OnboardingPage: React.FC = () => {
           </TabsContent>
         </Tabs>
       )}
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {templateToDelete
-                ? 'This will permanently delete the template and all its items. This action cannot be undone.'
-                : 'This will remove the employee from onboarding. This action cannot be undone.'}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => {
-              setTemplateToDelete(null);
-              setOnboardingToRemove(null);
-            }}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (templateToDelete) {
-                  handleDeleteTemplate(templateToDelete);
-                } else if (onboardingToRemove) {
-                  handleRemoveOnboarding(onboardingToRemove);
-                }
-                setTemplateToDelete(null);
-                setOnboardingToRemove(null);
-                setDeleteConfirmOpen(false);
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 };

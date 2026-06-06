@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -177,7 +177,7 @@ const Auth: React.FC = () => {
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-primary">
             <Building2 className="h-6 w-6 text-primary-foreground" />
           </div>
-          <CardTitle className="text-xl sm:text-2xl">HRMS Platform</CardTitle>
+          <CardTitle className="text-2xl">HRMS Platform</CardTitle>
           <CardDescription>
             Manage your workforce efficiently
           </CardDescription>
@@ -227,11 +227,6 @@ const Auth: React.FC = () => {
                   {errors.password && (
                     <p className="text-sm text-destructive">{errors.password}</p>
                   )}
-                  <div className="flex justify-end">
-                    <Link to="/forgot-password" className="text-sm text-primary hover:underline">
-                      Forgot password?
-                    </Link>
-                  </div>
                 </div>
 
                 <Button type="submit" className="w-full" disabled={isLoading}>
